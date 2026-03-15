@@ -1,11 +1,20 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter } from '@angular/router';
+import { provideHttpClient, withInterceptors, withXsrfConfiguration } from '@angular/common/http';
 
 import { routes } from './app.routes';
+import { authTokenInterceptor } from './interceptors/auth-token.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    provideRouter(routes)
+    provideRouter(routes),
+    provideHttpClient(
+      withInterceptors([authTokenInterceptor]),
+      withXsrfConfiguration({
+        cookieName: 'XSRF-TOKEN',
+        headerName: 'X-XSRF-TOKEN'
+      })
+    )
   ]
 };

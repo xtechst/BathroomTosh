@@ -1,0 +1,421 @@
+/* Navigation Bar Styles */
+.navbar {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.navbar-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2rem;
+  height: 70px;
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.brand-logo {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+}
+
+.navbar-content {
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+  flex: 1;
+  justify-content: space-between;
+  margin-left: 2rem;
+}
+
+.nav-menu {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  list-style: none;
+}
+
+.nav-link {
+  color: white;
+  text-decoration: none;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  display: block;
+  background: none;
+  border: none;
+  cursor: pointer;
+  position: relative;
+}
+
+.nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.nav-link.active,
+.nav-link.active::after {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background-color: #ffd700;
+}
+
+/* Dropdown Menu */
+.nav-dropdown {
+  position: relative;
+}
+
+.dropdown-toggle::after {
+  content: ' ▼';
+  font-size: 0.7rem;
+  margin-left: 0.25rem;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: white;
+  color: #333;
+  min-width: 200px;
+  padding: 0.5rem 0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: all 0.3s ease;
+  margin-top: 0.5rem;
+}
+
+.nav-dropdown:hover .dropdown-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.dropdown-item {
+  display: block;
+  padding: 0.75rem 1.25rem;
+  color: #333;
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  background: none;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dropdown-item:hover {
+  background-color: #f5f5f5;
+  padding-left: 1.75rem;
+}
+
+.dropdown-item.logout-item {
+  border-top: 1px solid #eee;
+  color: #e74c3c;
+}
+
+.dropdown-item.logout-item:hover {
+  background-color: #fee;
+}
+
+/* User Profile Section */
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-left: auto;
+}
+
+.role-badge {
+  background-color: rgba(255, 255, 255, 0.2);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.role-badge.acting {
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+  color: #333;
+  animation: pulse-glow 2s infinite;
+}
+
+.role-label {
+  font-size: 0.8rem;
+}
+
+.acting-timer {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.user-menu {
+  position: relative;
+}
+
+.user-button {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.user-button:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.user-name {
+  font-weight: 500;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu-arrow {
+  font-size: 0.7rem;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  color: #333;
+  min-width: 200px;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  margin-top: 0.5rem;
+  overflow: hidden;
+  z-index: 1001;
+}
+
+.user-info {
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+}
+
+.info-label {
+  margin: 0.5rem 0 0.25rem 0;
+  font-size: 0.8rem;
+  color: #999;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.info-value {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #333;
+  font-weight: 500;
+}
+
+/* Main Content */
+.app-main {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.app-main.with-navbar {
+  min-height: calc(100vh - 70px);
+  padding: 2rem;
+}
+
+.app-main.with-navbar > * {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(255, 215, 0, 0);
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .navbar-container {
+    padding: 0 1.5rem;
+  }
+
+  .navbar-content {
+    gap: 2rem;
+  }
+
+  .nav-links {
+    gap: 0;
+  }
+
+  .nav-link {
+    padding: 0.75rem 0.9rem;
+    font-size: 0.9rem;
+  }
+
+  .role-badge {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .navbar-container {
+    height: auto;
+    padding: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .brand-logo {
+    font-size: 1.2rem;
+  }
+
+  .navbar-content {
+    flex-basis: 100%;
+    margin-left: 0;
+    margin-top: 1rem;
+    gap: 1rem;
+    justify-content: space-between;
+  }
+
+  .nav-menu {
+    flex: 1;
+  }
+
+  .nav-links {
+    flex-wrap: wrap;
+    gap: 0;
+  }
+
+  .nav-link {
+    padding: 0.5rem 0.7rem;
+    font-size: 0.85rem;
+  }
+
+  .dropdown-menu {
+    left: auto;
+    right: 0;
+  }
+
+  .dropdown-item:hover {
+    padding-left: 1.25rem;
+  }
+
+  .user-profile {
+    flex-basis: 100%;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    margin-left: 0;
+    gap: 1rem;
+  }
+
+  .role-badge {
+    flex-direction: row;
+    gap: 0.5rem;
+  }
+
+  .acting-timer {
+    display: none;
+  }
+
+  .app-main.with-navbar {
+    min-height: auto;
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .navbar-container {
+    justify-content: center;
+  }
+
+  .brand-logo {
+    font-size: 1rem;
+  }
+
+  .navbar-content {
+    flex-direction: column;
+  }
+
+  .nav-links {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .nav-link {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.8rem;
+  }
+
+  .user-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .user-name {
+    display: none;
+  }
+
+  .user-profile {
+    width: 100%;
+  }
+}
