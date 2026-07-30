@@ -61,6 +61,13 @@ export class UserService {
   }
 
   /**
+   * Get all supervisors (for managers)
+   */
+  getAllSupervisors(): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/users/role/SUPERVISOR`);
+  }
+
+  /**
    * Update user details (Admin only)
    */
   updateUser(userId: string, payload: UpdateUserRequest): Observable<any> {
@@ -82,9 +89,51 @@ export class UserService {
   }
 
   /**
+   * Assign manager to supervisor (Admin only)
+   */
+  assignManager(supervisorId: string, managerId: string): Observable<any> {
+    return this.http.put<any>(`${this.apiUrl}/users/${supervisorId}/manager`, { managerId });
+  }
+
+  /**
    * Delete user (Admin only)
    */
   deleteUser(userId: string): Observable<any> {
     return this.http.delete<any>(`${this.apiUrl}/users/${userId}`);
+  }
+
+  /**
+   * Get supervisors under a manager
+   */
+  getSupervisorsUnderManager(managerId: string): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/users/manager/${managerId}/supervisors`);
+  }
+
+  /**
+   * Get leave requests for approval (Manager)
+   */
+  getLeaveRequestsForApproval(managerId: string): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/leave-requests/pending`);
+  }
+
+  /**
+   * Get leave requests for supervisor approval
+   */
+  getLeaveRequestsForSupervisor(supervisorId: string): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/leave-requests/supervisor/${supervisorId}`);
+  }
+
+  /**
+   * Get users by supervisor ID
+   */
+  getUsersBySupervisor(supervisorId: string): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/users/supervisor/${supervisorId}`);
+  }
+
+  /**
+   * Get users by role
+   */
+  getUsersByRole(role: string): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/users/role/${role}`);
   }
 }

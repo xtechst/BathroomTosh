@@ -61,12 +61,12 @@ export const managerGuard: CanActivateFn = (route, state) => {
 };
 
 /**
- * Guard for Supervisor and above routes
+ * Guard for Supervisor-only routes
  */
 export const supervisorGuard: CanActivateFn = (route, state) => {
   const authService = inject(AuthService);
   const effectiveRole = authService.getEffectiveRole();
-  const allowedRoles = [BaseRole.TECH_ADMIN, BaseRole.MANAGER, BaseRole.SUPERVISOR];
+  const allowedRoles = [BaseRole.SUPERVISOR];
   
   return allowedRoles.includes(effectiveRole);
 };

@@ -44,20 +44,19 @@ import { AuthService } from '../../services/auth.service';
             </div>
 
             <button type="submit" [disabled]="isLoading()" class="login-btn">
-              @if (isLoading()) {
+              <ng-container *ngIf="isLoading(); else signInLabel">
                 <span class="spinner"></span>
                 <span>Logging in...</span>
-              } @else {
+              </ng-container>
+              <ng-template #signInLabel>
                 <span>Sign In</span>
-              }
+              </ng-template>
             </button>
 
-            @if (errorMessage()) {
-              <div class="error-alert">
-                <span class="error-icon">⚠️</span>
-                <span class="error-text">{{ errorMessage() }}</span>
-              </div>
-            }
+            <div *ngIf="errorMessage()" class="error-alert">
+              <span class="error-icon">⚠️</span>
+              <span class="error-text">{{ errorMessage() }}</span>
+            </div>
           </form>
 
           <div class="divider">

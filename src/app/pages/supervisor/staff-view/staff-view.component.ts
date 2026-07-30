@@ -11,12 +11,13 @@ import { User, Task } from '../../../models';
   standalone: true,
   imports: [CommonModule, FormsModule, ReactiveFormsModule],
   template: `
-    <div class="supervisor-staff-container">
+    <div class="form-center-viewport">
+      <div class="center-card supervisor-staff-container">
       <h1>Staff Under My Supervision</h1>
 
       <!-- Staff List Section -->
       <div class="section">
-        <button (click)="loadStaff()" [disabled]="isLoading()">
+        <button type="button" (click)="loadStaff()" [disabled]="isLoading()">
           {{ isLoading() ? 'Loading...' : 'Refresh Staff List' }}
         </button>
 
@@ -40,7 +41,7 @@ import { User, Task } from '../../../models';
                 <td>{{ member.email }}</td>
                 <td>{{ member.isActive ? 'Active' : 'Inactive' }}</td>
                 <td>
-                  <button (click)="selectStaffForTasks(member)">Manage Tasks</button>
+                  <button type="button" (click)="selectStaffForTasks(member)">Manage Tasks</button>
                 </td>
               </tr>
             </tbody>
@@ -105,7 +106,7 @@ import { User, Task } from '../../../models';
       <!-- Staff Tasks Section -->
       <div class="section" *ngIf="selectedStaff()">
         <h2>Tasks for: {{ selectedStaff()?.firstName || '' }} {{ selectedStaff()?.lastName || '' }}</h2>
-        <button (click)="loadStaffTasks()" [disabled]="isLoadingTasks()">
+        <button type="button" (click)="loadStaffTasks()" [disabled]="isLoadingTasks()">
           {{ isLoadingTasks() ? 'Loading...' : 'Refresh Tasks' }}
         </button>
 
@@ -146,7 +147,7 @@ import { User, Task } from '../../../models';
                 </td>
                 <td>{{ task.completedAt ? (task.completedAt | date: 'MMM d, yyyy') : '-' }}</td>
                 <td>
-                  <button (click)="deleteTask(task._id || task.id || '')" class="delete-btn">Delete</button>
+                  <button type="button" (click)="deleteTask(task._id || task.id || '')" class="delete-btn">Delete</button>
                 </td>
               </tr>
             </tbody>
@@ -158,7 +159,8 @@ import { User, Task } from '../../../models';
 
       <!-- Close Section Button -->
       <div class="section" *ngIf="selectedStaff()">
-        <button (click)="closeSelection()" class="close-btn">Close</button>
+        <button type="button" (click)="closeSelection()" class="close-btn">Close</button>
+      </div>
       </div>
     </div>
   `,

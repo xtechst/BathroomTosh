@@ -1,9 +1,56 @@
 const express = require('express');
 const Task = require('../models/Task');
+const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
+
+/**
+ * Validate task assignment based on role hierarchy
+ * MANAGER -> can only assign to SUPERVISOR
+ * SUPERVISOR -> can only assign to STAFF
+ * TECH_ADMIN -> can assign to anyone
+ * STAFF -> cannot assign
+ */
+const validateTaskAssignment = async (assignerId, assignerRole, assigneeId) => {
+  try {
+    const assignee = await User.findById(assigneeId);
+    
+    if (!assignee) {
+      return { valid: false, message: 'Assignee not found' };
+    }
+
+    if (assignerRole === 'TECH_ADMIN') {
+      return { valid: true, message: 'Tech Admin can assign to anyone' };
+    }
+
+    if (assignerRole === 'MANAGER') {
+      if (assignee.baseRole !== 'SUPERVISOR') {
+        return { valid: false, message: 'Managers can only assign tasks to Supervisors' };
+      }
+      return { valid: true, message: 'Valid assignment' };
+    }
+
+    if (assignerRole === 'SUPERVISOR') {
+      if (assignee.baseRole !== 'STAFF') {
+        return { valid: false, message: 'Supervisors can only assign tasks to Staff members' };
+      }
+      // Verify the staff member is under this supervisor
+      if (!assignee.supervisorId) {
+        return { valid: false, message: 'Staff member is not assigned to a supervisor' };
+      }
+      if (assignee.supervisorId.toString() !== assignerId) {
+        return { valid: false, message: 'Staff member is not under your supervision' };
+      }
+      return { valid: true, message: 'Valid assignment' };
+    }
+
+    return { valid: false, message: 'Your role cannot assign tasks' };
+  } catch (error) {
+    return { valid: false, message: error.message };
+  }
+};
 
 // Get user's tasks
 router.get('/user/:userId', authMiddleware, async (req, res) => {
@@ -22,6 +69,12 @@ router.get('/user/:userId', authMiddleware, async (req, res) => {
 router.post('/', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER', 'SUPERVISOR']), async (req, res) => {
   try {
     const { title, description, area, assignedTo, checklistItems, dueDate, priority } = req.body;
+
+    // Validate task assignment based on role hierarchy
+    const validation = await validateTaskAssignment(req.user.userId, req.user.baseRole, assignedTo);
+    if (!validation.valid) {
+      return res.status(403).json({ success: false, message: validation.message });
+    }
 
     const task = await Task.create({
       title,

@@ -28,7 +28,7 @@ export const ROLE_PERMISSIONS: Record<BaseRole, RolePermissions> = {
     canApproveLeave: true,
     canInitiateActingRole: true,
     canManageRoster: true,
-    canAssignTasks: true,
+    canAssignTasks: false,
     canViewAllStaffTasks: true,
     canExecuteTasks: false,
     canAddNotes: true,
@@ -39,7 +39,7 @@ export const ROLE_PERMISSIONS: Record<BaseRole, RolePermissions> = {
     canApproveLeave: true,
     canInitiateActingRole: true,
     canManageRoster: true,
-    canAssignTasks: true,
+    canAssignTasks: false, // Managers should not assign tasks directly
     canViewAllStaffTasks: true,
     canExecuteTasks: false,
     canAddNotes: true,
@@ -50,7 +50,7 @@ export const ROLE_PERMISSIONS: Record<BaseRole, RolePermissions> = {
     canApproveLeave: false,
     canInitiateActingRole: false,
     canManageRoster: true,
-    canAssignTasks: true,
+    canAssignTasks: true, // Can assign tasks to Staff only
     canViewAllStaffTasks: true,
     canExecuteTasks: false,
     canAddNotes: true,
@@ -79,6 +79,11 @@ export interface User {
   lastName?: string;
   isActive?: boolean;
   supervisorId?: User | string | null;
+  leaveBalances?: {
+    annual: number;
+    sick: number;
+    otherSick: number;
+  };
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -107,7 +112,7 @@ export interface ActingAssignment {
  * If an Acting Supervisor requests leave for themselves,
  * auto-escalates to Manager/Tech Admin to prevent self-approval
  */
-export interface LeaveRequest {
+export interface RoleLeaveRequest {
   id: string;
   userId: string;
   startDate: Date;

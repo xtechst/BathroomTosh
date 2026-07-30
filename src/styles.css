@@ -1,1 +1,37 @@
 /* You can add global styles to this file, and also import other style files */
+
+/* Utility: center forms horizontally with a comfortable max width */
+main form,
+.form-center {
+	width: 100%;
+	max-width: 760px;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+/* Utility: center content both vertically and horizontally on the viewport
+	 Use by wrapping page content in an element with `form-center-viewport` */
+.form-center-viewport {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: calc(100vh - 80px);
+	padding: 1rem;
+	box-sizing: border-box;
+}
+
+/* Utility card styling for centered forms */
+.center-card {
+	width: 100%;
+	max-width: 760px;
+	background: white;
+	border-radius: 12px;
+	padding: 1.5rem;
+	box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+}
+
+/* Small screens tweak */
+@media (max-width: 600px) {
+	.form-center-viewport { min-height: calc(100vh - 56px); }
+	.center-card { padding: 1rem; border-radius: 10px; }
+}

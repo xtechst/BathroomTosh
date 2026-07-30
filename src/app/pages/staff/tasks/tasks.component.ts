@@ -12,11 +12,9 @@ import { Task } from '../../../models';
     <div class="tasks-container">
       <h1>My Assigned Tasks</h1>
       
-      @if (currentUser()) {
-        <div class="user-info">
-          <p>Assigned to: <strong>{{ currentUser()!.username }}</strong></p>
-        </div>
-      }
+      <div *ngIf="currentUser()" class="user-info">
+        <p>Assigned to: <strong>{{ currentUser()!.username }}</strong></p>
+      </div>
 
       <div class="controls">
         <button (click)="loadTasks()" [disabled]="isLoading()">
@@ -24,16 +22,12 @@ import { Task } from '../../../models';
         </button>
       </div>
 
-      @if (error()) {
-        <div class="error-message">
-          {{ error() }}
-        </div>
-      }
+      <div *ngIf="error()" class="error-message">
+        {{ error() }}
+      </div>
 
-      @if (tasks().length > 0) {
-        <div class="tasks-grid">
-          @for (task of tasks(); track task._id || task.id) {
-            <div class="task-card" [ngClass]="'status-' + (task.status || '').toLowerCase()">
+      <div *ngIf="tasks().length > 0" class="tasks-grid">
+          <div *ngFor="let task of tasks()" class="task-card" [ngClass]="'status-' + (task.status || '').toLowerCase()">
               <div class="task-header">
                 <h3>{{ task.title }}</h3>
                 <span class="priority-badge" [ngClass]="'priority-' + (task.priority || 'LOW').toUpperCase()">
@@ -41,9 +35,7 @@ import { Task } from '../../../models';
                 </span>
               </div>
 
-              @if (task.description) {
-                <p class="description">{{ task.description }}</p>
-              }
+              <p class="description" *ngIf="task.description">{{ task.description }}</p>
 
               <div class="task-details">
                 <div class="detail">
@@ -58,42 +50,32 @@ import { Task } from '../../../models';
                   </span>
                 </div>
 
-                @if (task.dueDate) {
-                  <div class="detail">
-                    <span class="label">Due Date:</span>
-                    <span class="value">{{ formatDate(task.dueDate) }}</span>
-                  </div>
-                }
+                <div class="detail" *ngIf="task.dueDate">
+                  <span class="label">Due Date:</span>
+                  <span class="value">{{ formatDate(task.dueDate) }}</span>
+                </div>
 
-                @if (task.completedAt) {
-                  <div class="detail">
-                    <span class="label">Date Completed:</span>
-                    <span class="value">{{ formatDate(task.completedAt) }}</span>
-                  </div>
-                }
+                <div class="detail" *ngIf="task.completedAt">
+                  <span class="label">Date Completed:</span>
+                  <span class="value">{{ formatDate(task.completedAt) }}</span>
+                </div>
               </div>
 
-              @if (task.checklist && task.checklist.length > 0) {
-                <div class="checklist">
+              <div class="checklist" *ngIf="task.checklist && task.checklist.length > 0">
                   <h4>Checklist:</h4>
                   <ul>
-                    @for (item of task.checklist; track $index) {
-                      <li [ngClass]="item.isCompleted ? 'completed' : ''">
-                        <span class="check">{{ item.isCompleted ? '✓' : '○' }}</span>
-                        {{ item.title }}
-                      </li>
-                    }
+                    <li *ngFor="let item of task.checklist" [ngClass]="item.isCompleted ? 'completed' : ''">
+                      <span class="check">{{ item.isCompleted ? '✓' : '○' }}</span>
+                      {{ item.title }}
+                    </li>
                   </ul>
                 </div>
-              }
             </div>
-          }
-        </div>
-      } @else {
-        <div class="no-tasks">
-          <p>No tasks assigned to you yet.</p>
-        </div>
-      }
+      </div>
+
+      <div *ngIf="tasks().length === 0" class="no-tasks">
+        <p>No tasks assigned to you yet.</p>
+      </div>
     </div>
   `,
   styles: [`

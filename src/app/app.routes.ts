@@ -4,7 +4,8 @@ import {
   supervisorGuard, 
   managerGuard, 
   techAdminGuard,
-  auditModeGuard 
+  auditModeGuard,
+  DashboardRedirectGuard
 } from './guards';
 import { BaseRole } from './models';
 
@@ -15,13 +16,23 @@ export const routes: Routes = [
   },
   {
     path: 'dashboard',
-    canActivate: [staffGuard],
+    canActivate: [staffGuard, DashboardRedirectGuard],
     loadComponent: () => import('./pages/dashboard/dashboard.component').then(m => m.DashboardComponent)
   },
   {
     path: 'staff/tasks',
     canActivate: [staffGuard],
     loadComponent: () => import('./pages/staff/tasks/tasks.component').then(m => m.TasksComponent)
+  },
+  {
+    path: 'staff/leave',
+    canActivate: [staffGuard],
+    loadComponent: () => import('./pages/staff/leave/leave.component').then(m => m.StaffLeaveComponent)
+  },
+  {
+    path: 'leave',
+    canActivate: [staffGuard],
+    loadComponent: () => import('./pages/staff/leave/leave.component').then(m => m.StaffLeaveComponent)
   },
   {
     path: 'supervisor/roster',

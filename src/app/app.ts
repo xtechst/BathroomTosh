@@ -2,6 +2,7 @@ import { Component, signal, computed, inject } from '@angular/core';
 import { RouterOutlet, Router, NavigationEnd } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { AuthService } from './services/auth.service';
+import { DashboardNavigationService } from './services/dashboard-navigation.service';
 import { User, ActingAssignment } from './models';
 import { filter } from 'rxjs/operators';
 
@@ -53,7 +54,8 @@ export class App {
 
   constructor(
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private dashboardNavService: DashboardNavigationService
   ) {
     // Subscribe to auth state changes
     this.authService.getCurrentUser$().subscribe(user => {
@@ -92,6 +94,13 @@ export class App {
 
   toggleUserMenu(): void {
     this.showUserMenu.update(val => !val);
+  }
+
+  /**
+   * Navigate to dashboard based on current user's role
+   */
+  navigateToDashboard(): void {
+    this.dashboardNavService.navigateToDashboard();
   }
 
   logout(): void {

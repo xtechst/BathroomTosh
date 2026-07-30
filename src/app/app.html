@@ -190,39 +190,31 @@
 
     <div class="navbar-content">
       <div class="nav-menu">
-        @if (currentUser()) {
-          <div class="nav-links">
-            <!-- Dashboard -->
-            <a routerLink="/dashboard" 
-               routerLinkActive="active" 
-               class="nav-link">
-              📊 Dashboard
-            </a>
+        <div class="nav-links" *ngIf="currentUser()">
+          <!-- Dashboard -->
+          <a (click)="navigateToDashboard()" 
+             class="nav-link" 
+             style="cursor: pointer;">
+            📊 Dashboard
+          </a>
 
-            <!-- Staff Links -->
-            @if (canExecuteTasks()) {
-              <a routerLink="/staff/tasks" 
-                 routerLinkActive="active" 
-                 class="nav-link">
-                📋 My Tasks
-              </a>
-            }
-
-
-          </div>
-        }
+          <!-- Staff Links -->
+          <a *ngIf="canExecuteTasks()" routerLink="/staff/tasks" 
+             routerLinkActive="active" 
+             class="nav-link">
+            📋 My Tasks
+          </a>
+        </div>
       </div>
 
       <!-- User Section -->
-      @if (currentUser(); as user) {
+      <ng-container *ngIf="currentUser() as user">
         <div class="user-profile">
           <div class="role-badge" [class.acting]="isActingRoleActive()">
             <span class="role-label">{{ effectiveRoleDisplay() }}</span>
-            @if (isActingRoleActive()) {
-              <span class="acting-timer">
-                ⏱️ {{ remainingTime() }}
-              </span>
-            }
+            <span class="acting-timer" *ngIf="isActingRoleActive()">
+              ⏱️ {{ remainingTime() }}
+            </span>
           </div>
           
           <div class="user-menu">
@@ -232,22 +224,20 @@
               <span class="menu-arrow">▼</span>
             </button>
             
-            @if (showUserMenu()) {
-              <div class="user-dropdown">
-                <div class="user-info">
-                  <p class="info-label">Logged in as:</p>
-                  <p class="info-value">{{ user.username }}</p>
-                  <p class="info-label">Role:</p>
-                  <p class="info-value">{{ currentUser()!.baseRole }}</p>
-                </div>
-                <button (click)="logout()" class="dropdown-item logout-item">
-                  🚪 Logout
-                </button>
+            <div class="user-dropdown" *ngIf="showUserMenu()">
+              <div class="user-info">
+                <p class="info-label">Logged in as:</p>
+                <p class="info-value">{{ user.username }}</p>
+                <p class="info-label">Role:</p>
+                <p class="info-value">{{ currentUser()!.baseRole }}</p>
               </div>
-            }
+              <button (click)="logout()" class="dropdown-item logout-item">
+                🚪 Logout
+              </button>
+            </div>
           </div>
         </div>
-      }
+      </ng-container>
     </div>
   </div>
 </nav>

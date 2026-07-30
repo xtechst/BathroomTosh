@@ -27,6 +27,12 @@ const UserSchema = new mongoose.Schema({
     required: false,
     default: null
   },
+  managerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false,
+    default: null
+  },
   firstName: {
     type: String,
     required: false
@@ -38,6 +44,20 @@ const UserSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  leaveBalances: {
+    annual: {
+      type: Number,
+      default: 15 // 15 days annual leave
+    },
+    sick: {
+      type: Number,
+      default: 22 // 22 days sick leave
+    },
+    otherSick: {
+      type: Number,
+      default: 0 // Additional sick days
+    }
   },
   createdAt: {
     type: Date,

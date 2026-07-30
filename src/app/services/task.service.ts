@@ -475,7 +475,7 @@ export class TaskService {
   /**
    * API: Get tasks for a specific user
    */
-  getTasksForUser(userId: string): Observable<any> {
+  getTasksForUser(userId: string): Observable<{ success: boolean; tasks: Task[] }> {
     return this.http.get<any>(`${this.apiUrl}/tasks/user/${userId}`);
   }
 

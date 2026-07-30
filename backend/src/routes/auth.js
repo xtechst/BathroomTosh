@@ -29,6 +29,16 @@ const initializeDemoUsers = async () => {
     }
     
     await User.insertMany(DEMO_USERS);
+
+    const supervisor = await User.findOne({ username: 'supervisor' });
+    const staff = await User.findOne({ username: 'staff' });
+
+    if (supervisor && staff) {
+      staff.supervisorId = supervisor._id;
+      await staff.save();
+      console.log('✓ Staff assigned to supervisor');
+    }
+
     console.log('✓ Demo users initialized');
   } catch (error) {
     console.error('Error initializing demo users:', error);

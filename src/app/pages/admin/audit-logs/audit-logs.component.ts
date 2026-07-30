@@ -26,21 +26,25 @@ import { AuthService } from '../../../services/auth.service';
         <h4>Audit Log Entry Structure:</h4>
         <pre>{{ auditExample }}</pre>
 
-        @if (auditLogsLoading()) {
+        <div *ngIf="auditLogsLoading()">
           <p class="loading">Loading audit logs...</p>
-        }
+        </div>
 
-        @if (!auditLogsLoading() && auditLogs().length > 0) {
+        <div *ngIf="!auditLogsLoading() && auditLogs().length > 0">
           <h4 style="margin-top: 2rem;">Recent Audit Logs</h4>
-          <div class="audit-table">
-            @for (log of auditLogs(); track log.id) {
-              <div class="audit-entry">
-                <span class="timestamp">{{ log.timestamp | date:'short' }}</span>
-                <span class="action">{{ log.action }}</span>
-              </div>
-            }
+          <div class="audit-table" (scroll)="onScroll($event)">
+            <div *ngFor="let log of auditLogs()" class="audit-entry">
+              <span class="timestamp">{{ log.timestamp | date:'short' }}</span>
+              <span class="action">{{ log.action }}</span>
+            </div>
+            <div *ngIf="loadingMore" class="loading more">Loading more...</div>
           </div>
-        }
+
+          <div class="pagination-info">
+            <small>Showing {{ auditLogs().length }} of {{ total }}</small>
+            <button *ngIf="canLoadMore()" (click)="loadMore()">Load more</button>
+          </div>
+        </div>
       </div>
     </div>
   `,
@@ -86,6 +90,8 @@ import { AuthService } from '../../../services/auth.service';
       margin-top: 1rem;
       background: white;
       border-radius: 6px;
+      max-height: 420px;
+      overflow: auto;
     }
 
     .audit-entry {
@@ -109,6 +115,9 @@ import { AuthService } from '../../../services/auth.service';
       color: #333;
       font-weight: 500;
     }
+    .loading.more { padding: 0.75rem; text-align: center; color: #667eea; }
+    .pagination-info { margin-top: 0.75rem; display:flex; gap:1rem; align-items:center }
+    .pagination-info button { background:#667eea; color:white; border:none; padding:0.4rem 0.6rem; border-radius:4px; cursor:pointer }
   `]
 })
 export class AuditLogsComponent {
@@ -122,16 +131,24 @@ export class AuditLogsComponent {
 
   auditLogsLoading = signal(true);
   auditLogs = signal<any[]>([]);
+  loadingMore = signal(false);
+  limit = 50;
+  skip = 0;
+  total = 0;
 
   constructor(private authService: AuthService) {
     this.loadAuditLogs();
   }
 
   private loadAuditLogs(): void {
+    // initial load with pagination
     this.auditLogsLoading.set(true);
-    this.authService.getAuditLogs().subscribe({
-      next: (logs) => {
-        this.auditLogs.set(logs);
+    this.skip = 0 as any;
+    this.authService.getAuditLogs({ limit: this.limit, skip: this.skip }).subscribe({
+      next: (res) => {
+        this.auditLogs.set(res.logs || []);
+        this.total = res.total || 0;
+        this.skip = (res.skip || 0) + (res.logs?.length || 0);
         this.auditLogsLoading.set(false);
       },
       error: (err) => {
@@ -139,5 +156,36 @@ export class AuditLogsComponent {
         this.auditLogsLoading.set(false);
       }
     });
+  }
+
+  canLoadMore(): boolean {
+    return this.auditLogs().length < this.total;
+  }
+
+  loadMore(): void {
+    if (this.loadingMore() || !this.canLoadMore()) return;
+    this.loadingMore.set(true);
+    this.authService.getAuditLogs({ limit: this.limit, skip: this.skip }).subscribe({
+      next: (res) => {
+        const current = this.auditLogs();
+        this.auditLogs.set([...current, ...(res.logs || [])]);
+        this.skip = (res.skip || this.skip) + (res.logs?.length || 0);
+        this.total = res.total || this.total;
+        this.loadingMore.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to load more audit logs:', err);
+        this.loadingMore.set(false);
+      }
+    });
+  }
+
+  onScroll(event: Event): void {
+    const el = event.target as HTMLElement;
+    if (!el) return;
+    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 120;
+    if (nearBottom) {
+      this.loadMore();
+    }
   }
 }

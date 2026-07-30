@@ -55,7 +55,10 @@ router.post('/', authMiddleware, roleMiddleware(['TECH_ADMIN']), async (req, res
 // Get all users
 router.get('/', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER']), async (req, res) => {
   try {
-    const users = await User.find().select('-password').populate('supervisorId', 'username firstName lastName');
+    const users = await User.find()
+      .select('-password')
+      .populate('supervisorId', 'username firstName lastName')
+      .populate('managerId', 'username firstName lastName');
     res.json({ success: true, users });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -65,17 +68,58 @@ router.get('/', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER']), async
 // Get staff under a supervisor (must come BEFORE /:id route)
 router.get('/supervisor/:supervisorId', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER', 'SUPERVISOR']), async (req, res) => {
   try {
-    const staff = await User.find({ supervisorId: req.params.supervisorId }).select('-password').populate('supervisorId', 'username firstName lastName');
+    const staff = await User.find({ supervisorId: req.params.supervisorId, baseRole: 'STAFF' })
+      .select('-password')
+      .populate('supervisorId', 'username firstName lastName')
+      .populate('managerId', 'username firstName lastName');
     res.json({ success: true, staff });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// Get user by ID
-router.get('/:id', authMiddleware, async (req, res) => {
+// Get supervisors under a manager
+router.get('/manager/:managerId/supervisors', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER']), async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password').populate('supervisorId', 'username firstName lastName');
+    // For now, return all supervisors since we don't have a direct manager-supervisor relationship
+    // In a real system, you'd have a managerId field on supervisors
+    const supervisors = await User.find({ baseRole: 'SUPERVISOR' })
+      .select('-password')
+      .populate('supervisorId', 'username firstName lastName')
+      .populate('managerId', 'username firstName lastName');
+    res.json({ success: true, supervisors });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get users by role
+router.get('/role/:role', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER']), async (req, res) => {
+  try {
+    const { role } = req.params;
+    const validRoles = ['TECH_ADMIN', 'MANAGER', 'SUPERVISOR', 'STAFF'];
+    
+    if (!validRoles.includes(role.toUpperCase())) {
+      return res.status(400).json({ success: false, message: 'Invalid role' });
+    }
+
+    const users = await User.find({ baseRole: role.toUpperCase() })
+      .select('-password')
+      .populate('supervisorId', 'username firstName lastName')
+      .populate('managerId', 'username firstName lastName');
+    res.json({ success: true, users });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get user by ID
+router.get('/:id', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER']), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id)
+      .select('-password')
+      .populate('supervisorId', 'username firstName lastName')
+      .populate('managerId', 'username firstName lastName');
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
@@ -178,7 +222,10 @@ router.put('/:id/supervisor', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MAN
       req.params.id,
       { supervisorId, updatedAt: new Date() },
       { new: true }
-    ).select('-password').populate('supervisorId', 'username firstName lastName');
+    )
+      .select('-password')
+      .populate('supervisorId', 'username firstName lastName')
+      .populate('managerId', 'username firstName lastName');
 
     if (!staff) {
       return res.status(404).json({ success: false, message: 'Staff member not found' });
@@ -259,6 +306,53 @@ router.get('/:id/effective-role', authMiddleware, async (req, res) => {
       effectiveRole,
       actingAssignment: actingAssignment || null
     });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Assign manager to supervisor (Admin only)
+router.put('/:id/manager', authMiddleware, roleMiddleware(['TECH_ADMIN']), async (req, res) => {
+  try {
+    const { managerId } = req.body;
+
+    if (!managerId) {
+      return res.status(400).json({ success: false, message: 'Manager ID is required' });
+    }
+
+    // Verify manager exists and has proper role
+    const manager = await User.findById(managerId);
+    if (!manager) {
+      return res.status(404).json({ success: false, message: 'Manager not found' });
+    }
+
+    if (manager.baseRole !== 'MANAGER' && manager.baseRole !== 'TECH_ADMIN') {
+      return res.status(400).json({ success: false, message: 'Selected user is not a manager' });
+    }
+
+    const supervisor = await User.findByIdAndUpdate(
+      req.params.id,
+      { managerId, updatedAt: new Date() },
+      { new: true }
+    )
+      .select('-password')
+      .populate('supervisorId', 'username firstName lastName')
+      .populate('managerId', 'username firstName lastName');
+
+    if (!supervisor) {
+      return res.status(404).json({ success: false, message: 'Supervisor not found' });
+    }
+
+    // Log manager assignment
+    await AuditLog.create({
+      action: 'ASSIGN_MANAGER',
+      actionPerformerId: req.user.userId,
+      resourceType: 'USER',
+      resourceId: supervisor._id.toString(),
+      details: { supervisorUsername: supervisor.username, managerId, managerUsername: manager.username }
+    });
+
+    res.json({ success: true, message: 'Manager assigned successfully', user: supervisor });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

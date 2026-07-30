@@ -8,277 +8,34 @@ import { User } from '../../../models';
   selector: 'app-user-management',
   standalone: true,
   imports: [CommonModule, FormsModule, ReactiveFormsModule],
-  template: `
-    <div class="user-management-container">
-      <h1>User Management</h1>
-
-      <!-- Create User Section -->
-      <div class="section">
-        <h2>Create New User</h2>
-        <form [formGroup]="createForm" (ngSubmit)="onCreateUser()">
-          <div class="form-group">
-            <label>Username *</label>
-            <input type="text" formControlName="username" placeholder="Enter username" />
-            <span class="error" *ngIf="createForm.get('username')?.invalid && createForm.get('username')?.touched">
-              Username is required
-            </span>
-          </div>
-
-          <div class="form-group">
-            <label>Password *</label>
-            <input type="password" formControlName="password" placeholder="Enter password" />
-            <span class="error" *ngIf="createForm.get('password')?.invalid && createForm.get('password')?.touched">
-              Password is required
-            </span>
-          </div>
-
-          <div class="form-group">
-            <label>First Name</label>
-            <input type="text" formControlName="firstName" placeholder="Enter first name" />
-          </div>
-
-          <div class="form-group">
-            <label>Last Name</label>
-            <input type="text" formControlName="lastName" placeholder="Enter last name" />
-          </div>
-
-          <div class="form-group">
-            <label>Email</label>
-            <input type="email" formControlName="email" placeholder="Enter email" />
-          </div>
-
-          <div class="form-group">
-            <label>Role *</label>
-            <select formControlName="baseRole">
-              <option value="">Select Role</option>
-              <option value="TECH_ADMIN">Admin</option>
-              <option value="MANAGER">Manager</option>
-              <option value="SUPERVISOR">Supervisor</option>
-              <option value="STAFF">Staff</option>
-            </select>
-          </div>
-
-          <button type="submit" [disabled]="createForm.invalid || isCreating()">
-            {{ isCreating() ? 'Creating...' : 'Create User' }}
-          </button>
-
-          <span class="success" *ngIf="createSuccess()">{{ createSuccess() }}</span>
-          <span class="error" *ngIf="createError()">{{ createError() }}</span>
-        </form>
-      </div>
-
-      <!-- User List Section -->
-      <div class="section">
-        <h2>Users List</h2>
-        <button (click)="loadUsers()" [disabled]="isLoadingUsers()">
-          {{ isLoadingUsers() ? 'Loading...' : 'Load Users' }}
-        </button>
-
-        <span class="error" *ngIf="loadError()">{{ loadError() }}</span>
-
-        <div *ngIf="users().length > 0" class="users-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Username</th>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let user of users()">
-                <td>{{ user.username }}</td>
-                <td>{{ user.firstName || '' }} {{ user.lastName || '' }}</td>
-                <td>{{ user.email }}</td>
-                <td>{{ user.baseRole }}</td>
-                <td>{{ user.isActive ? 'Active' : 'Inactive' }}</td>
-                <td>
-                  <button (click)="selectUserForEdit(user)">Edit</button>
-                  <button (click)="deleteUser(user._id || user.id || '')">Delete</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Edit User Section -->
-      <div class="section" *ngIf="selectedUser()">
-        <h2>Edit User: {{ selectedUser()?.username }}</h2>
-        <form [formGroup]="editForm" (ngSubmit)="onUpdateUser()">
-          <div class="form-group">
-            <label>First Name</label>
-            <input type="text" formControlName="firstName" />
-          </div>
-
-          <div class="form-group">
-            <label>Last Name</label>
-            <input type="text" formControlName="lastName" />
-          </div>
-
-          <div class="form-group">
-            <label>Email</label>
-            <input type="email" formControlName="email" />
-          </div>
-
-          <div class="form-group">
-            <label>Role</label>
-            <select formControlName="baseRole">
-              <option value="TECH_ADMIN">Admin</option>
-              <option value="MANAGER">Manager</option>
-              <option value="SUPERVISOR">Supervisor</option>
-              <option value="STAFF">Staff</option>
-            </select>
-          </div>
-
-          <button type="submit" [disabled]="isUpdating()">
-            {{ isUpdating() ? 'Updating...' : 'Update User' }}
-          </button>
-          <button type="button" (click)="cancelEdit()">Cancel</button>
-
-          <span class="success" *ngIf="updateSuccess()">{{ updateSuccess() }}</span>
-          <span class="error" *ngIf="updateError()">{{ updateError() }}</span>
-        </form>
-      </div>
-    </div>
-  `,
-  styles: [`
-    .user-management-container {
-      padding: 20px;
-      max-width: 1000px;
-      margin: 0 auto;
-    }
-
-    .section {
-      background: #f9f9f9;
-      border: 1px solid #ddd;
-      padding: 20px;
-      margin: 20px 0;
-      border-radius: 4px;
-    }
-
-    h1 {
-      color: #333;
-      margin-bottom: 20px;
-    }
-
-    h2 {
-      color: #555;
-      margin-bottom: 15px;
-      font-size: 18px;
-    }
-
-    .form-group {
-      margin-bottom: 15px;
-      display: flex;
-      flex-direction: column;
-    }
-
-    label {
-      font-weight: bold;
-      margin-bottom: 5px;
-      color: #333;
-    }
-
-    input, select {
-      padding: 8px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 14px;
-    }
-
-    input:focus, select:focus {
-      outline: none;
-      border-color: #4CAF50;
-      box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
-    }
-
-    button {
-      padding: 10px 15px;
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-right: 10px;
-      margin-top: 10px;
-      font-size: 14px;
-    }
-
-    button:hover:not(:disabled) {
-      background-color: #45a049;
-    }
-
-    button:disabled {
-      background-color: #cccccc;
-      cursor: not-allowed;
-    }
-
-    .error {
-      color: #d32f2f;
-      font-size: 14px;
-      margin-top: 5px;
-    }
-
-    .success {
-      color: #388e3c;
-      font-size: 14px;
-      margin-top: 10px;
-      display: inline-block;
-    }
-
-    .users-table {
-      margin-top: 15px;
-      overflow-x: auto;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-    }
-
-    th {
-      background-color: #4CAF50;
-      color: white;
-      padding: 12px;
-      text-align: left;
-    }
-
-    td {
-      padding: 12px;
-      border-bottom: 1px solid #ddd;
-    }
-
-    tr:hover {
-      background-color: #f5f5f5;
-    }
-
-    table button {
-      padding: 5px 10px;
-      font-size: 12px;
-      margin-right: 5px;
-    }
-  `]
+  templateUrl: './user-management.component.html',
+  styleUrl: './user-management.component.css'
 })
 export class UserManagementComponent implements OnInit {
   createForm!: FormGroup;
   editForm!: FormGroup;
+  supervisorForm!: FormGroup;
+  managerForm!: FormGroup;
 
   users = signal<User[]>([]);
+  supervisorList = signal<User[]>([]);
+  managerList = signal<User[]>([]);
   selectedUser = signal<User | null>(null);
 
   isCreating = signal(false);
   isLoadingUsers = signal(false);
   isUpdating = signal(false);
+  isAssigningSupervisor = signal(false);
+  isAssigningManager = signal(false);
 
   createSuccess = signal('');
   createError = signal('');
   updateSuccess = signal('');
   updateError = signal('');
+  assignSupervisorSuccess = signal('');
+  assignSupervisorError = signal('');
+  assignManagerSuccess = signal('');
+  assignManagerError = signal('');
   loadError = signal('');
 
   constructor(
@@ -300,6 +57,13 @@ export class UserManagementComponent implements OnInit {
       email: [''],
       baseRole: ['']
     });
+
+    this.supervisorForm = this.fb.group({
+      supervisorId: ['', Validators.required]
+    });
+    this.managerForm = this.fb.group({
+      managerId: ['', Validators.required]
+    });
   }
 
   ngOnInit(): void {
@@ -319,6 +83,35 @@ export class UserManagementComponent implements OnInit {
       error: (error: any) => {
         this.loadError.set('Failed to load users: ' + (error.error?.message || error.message));
         this.isLoadingUsers.set(false);
+      }
+    });
+
+    // Load supervisors separately via role endpoint to avoid client-side filtering
+    this.userService.getUsersByRole('SUPERVISOR').subscribe({
+      next: (res: any) => {
+        if (res.success) {
+          this.supervisorList.set(res.users || res.supervisors || []);
+        }
+      },
+      error: (err: any) => {
+        // fallback: filter loaded users if role endpoint fails
+        const fromUsers = this.users().filter((u: User) => u.baseRole === 'SUPERVISOR' || u.baseRole === 'TECH_ADMIN');
+        this.supervisorList.set(fromUsers);
+        console.error('Failed to load supervisors by role, using fallback filter:', err);
+      }
+    });
+
+    // Load managers for assignment dropdown
+    this.userService.getUsersByRole('MANAGER').subscribe({
+      next: (res: any) => {
+        if (res.success) {
+          this.managerList.set(res.users || []);
+        }
+      },
+      error: (err: any) => {
+        const fromUsers = this.users().filter((u: User) => u.baseRole === 'MANAGER' || u.baseRole === 'TECH_ADMIN');
+        this.managerList.set(fromUsers);
+        console.error('Failed to load managers by role, using fallback filter:', err);
       }
     });
   }
@@ -356,13 +149,19 @@ export class UserManagementComponent implements OnInit {
       email: user.email || '',
       baseRole: user.baseRole
     });
+    this.supervisorForm.reset({ supervisorId: '' });
+    this.managerForm.reset({ managerId: '' });
     this.updateSuccess.set('');
     this.updateError.set('');
+    this.assignSupervisorSuccess.set('');
+    this.assignSupervisorError.set('');
   }
 
   cancelEdit(): void {
     this.selectedUser.set(null);
     this.editForm.reset();
+    this.supervisorForm.reset();
+    this.managerForm.reset();
   }
 
   onUpdateUser(): void {
@@ -387,6 +186,62 @@ export class UserManagementComponent implements OnInit {
       error: (error: any) => {
         this.updateError.set('Failed to update user: ' + (error.error?.message || error.message));
         this.isUpdating.set(false);
+      }
+    });
+  }
+
+  onAssignSupervisor(): void {
+    if (!this.selectedUser() || this.supervisorForm.invalid) return;
+
+    this.isAssigningSupervisor.set(true);
+    this.assignSupervisorSuccess.set('');
+    this.assignSupervisorError.set('');
+
+    const supervisorId = this.supervisorForm.get('supervisorId')?.value;
+    const staffId = this.selectedUser()?._id || this.selectedUser()?.id || '';
+
+    this.userService.assignSupervisor(staffId, supervisorId).subscribe({
+      next: (response: any) => {
+        if (response.success) {
+          this.assignSupervisorSuccess.set('Supervisor assigned successfully!');
+          this.loadUsers();
+          setTimeout(() => {
+            this.cancelEdit();
+          }, 1500);
+        }
+        this.isAssigningSupervisor.set(false);
+      },
+      error: (error: any) => {
+        this.assignSupervisorError.set('Failed to assign supervisor: ' + (error.error?.message || error.message));
+        this.isAssigningSupervisor.set(false);
+      }
+    });
+  }
+
+  onAssignManager(): void {
+    if (!this.selectedUser() || this.managerForm.invalid) return;
+
+    this.isAssigningManager.set(true);
+    this.assignManagerSuccess.set('');
+    this.assignManagerError.set('');
+
+    const managerId = this.managerForm.get('managerId')?.value;
+    const supervisorId = this.selectedUser()?._id || this.selectedUser()?.id || '';
+
+    this.userService.assignManager(supervisorId, managerId).subscribe({
+      next: (response: any) => {
+        if (response.success) {
+          this.assignManagerSuccess.set('Manager assigned successfully!');
+          this.loadUsers();
+          setTimeout(() => {
+            this.cancelEdit();
+          }, 1500);
+        }
+        this.isAssigningManager.set(false);
+      },
+      error: (error: any) => {
+        this.assignManagerError.set('Failed to assign manager: ' + (error.error?.message || error.message));
+        this.isAssigningManager.set(false);
       }
     });
   }

@@ -9,6 +9,7 @@ export enum AreaName {
 }
 
 export interface ChecklistItem {
+title: any;
   id: string;
   description: string;
   isBoolean: boolean; // True/False toggle items

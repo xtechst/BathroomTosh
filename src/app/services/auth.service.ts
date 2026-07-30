@@ -34,6 +34,9 @@ export class AuthService {
   // Observable for reactive updates
   private currentUser$ = new BehaviorSubject<User | null>(null);
   private actingAssignment$ = new BehaviorSubject<ActingAssignment | null>(null);
+
+  public currentUser = this.currentUser$.asObservable();
+  public activeActingAssignment = this.actingAssignment$.asObservable();
   
   private apiUrl = environment.apiUrl;
   
@@ -247,15 +250,22 @@ export class AuthService {
   }
 
   /**
-   * Get audit logs (Admin only)
+   * Get audit logs (Admin only) with pagination support
+   * params: { limit?: number, skip?: number, actionPerformerId?: string, action?: string }
    */
-  getAuditLogs(): Observable<AuditLog[]> {
-    return this.http.get<any>(`${this.apiUrl}/audit-logs`)
+  getAuditLogs(params?: { limit?: number; skip?: number; actionPerformerId?: string; action?: string }): Observable<{ logs: AuditLog[]; total: number; limit: number; skip: number }> {
+    const query: any = {};
+    if (params?.limit != null) query.limit = params.limit;
+    if (params?.skip != null) query.skip = params.skip;
+    if (params?.actionPerformerId) query.actionPerformerId = params.actionPerformerId;
+    if (params?.action) query.action = params.action;
+
+    return this.http.get<any>(`${this.apiUrl}/audit-logs`, { params: query })
       .pipe(
-        map(response => response.logs || []),
+        map(response => ({ logs: response.logs || [], total: response.total || 0, limit: response.limit || (params?.limit || 100), skip: response.skip || (params?.skip || 0) })),
         catchError(error => {
           console.error('Audit logs error:', error);
-          return of([]);
+          return of({ logs: [], total: 0, limit: params?.limit || 100, skip: params?.skip || 0 });
         })
       );
   }

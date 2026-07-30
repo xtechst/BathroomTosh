@@ -10,9 +10,13 @@ const router = express.Router();
 // Submit leave request
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { startDate, endDate, reason } = req.body;
+    const { startDate, endDate, reason, leaveType } = req.body;
+    const user = await User.findById(req.user.userId);
 
-    // Check if user is acting supervisor
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'User not found' });
+    }
+
     const actingAssignment = await ActingAssignment.findOne({
       delegateUserId: req.user.userId,
       status: 'ACTIVE',
@@ -21,31 +25,54 @@ router.post('/', authMiddleware, async (req, res) => {
 
     const autoEscalated = !!actingAssignment;
     let escalatedTo = null;
+    let status = 'PENDING';
+    let approvedBy = null;
+
+    if (user.baseRole === 'TECH_ADMIN') {
+      status = 'APPROVED';
+      approvedBy = req.user.userId;
+    }
 
     if (autoEscalated) {
-      // Escalate to the next level up (Manager)
       const managers = await User.find({ baseRole: 'MANAGER' });
       if (managers.length > 0) {
         escalatedTo = managers[0]._id;
       }
+    } else if (user.baseRole === 'STAFF') {
+      escalatedTo = user.supervisorId;
+      if (!escalatedTo) {
+        const manager = await User.findOne({ baseRole: 'MANAGER' });
+        escalatedTo = manager ? manager._id : null;
+      }
+    } else if (user.baseRole === 'SUPERVISOR') {
+      let manager = await User.findOne({ baseRole: 'MANAGER' });
+      if (!manager) {
+        manager = await User.findOne({ baseRole: 'TECH_ADMIN' });
+      }
+      escalatedTo = manager ? manager._id : null;
+    } else if (user.baseRole === 'MANAGER') {
+      const techAdmin = await User.findOne({ baseRole: 'TECH_ADMIN' });
+      escalatedTo = techAdmin ? techAdmin._id : null;
     }
 
     const leaveRequest = await LeaveRequest.create({
       userId: req.user.userId,
+      leaveType: leaveType || 'ANNUAL',
       startDate,
       endDate,
       reason,
       autoEscalated,
-      escalatedTo
+      escalatedTo,
+      status,
+      approvedBy
     });
 
-    // Log leave request
     await AuditLog.create({
-      action: 'SUBMIT_LEAVE_REQUEST',
+      action: status === 'APPROVED' ? 'AUTO_APPROVE_LEAVE_REQUEST' : 'SUBMIT_LEAVE_REQUEST',
       actionPerformerId: req.user.userId,
       resourceType: 'LEAVE_REQUEST',
       resourceId: leaveRequest._id.toString(),
-      details: { autoEscalated, escalatedTo }
+      details: { autoEscalated, escalatedTo, status }
     });
 
     await leaveRequest.populate(['userId', 'escalatedTo']);
@@ -58,9 +85,15 @@ router.post('/', authMiddleware, async (req, res) => {
 // Get pending leave requests (for managers)
 router.get('/pending', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER']), async (req, res) => {
   try {
-    const leaveRequests = await LeaveRequest.find({ status: 'PENDING' })
-      .populate('userId', 'username baseRole')
-      .populate('escalatedTo', 'username baseRole')
+    const filter = { status: 'PENDING' };
+
+    if (req.user.baseRole === 'MANAGER') {
+      filter.escalatedTo = req.user.userId;
+    }
+
+    const leaveRequests = await LeaveRequest.find(filter)
+      .populate('userId', 'username firstName lastName baseRole')
+      .populate('escalatedTo', 'username firstName lastName baseRole')
       .sort({ createdAt: -1 });
 
     res.json({ success: true, leaveRequests });
@@ -83,8 +116,8 @@ router.get('/user/:userId', authMiddleware, async (req, res) => {
   }
 });
 
-// Approve leave request
-router.patch('/:id/approve', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER']), async (req, res) => {
+// Approve leave request (for supervisors)
+router.patch('/:id/approve', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER', 'SUPERVISOR']), async (req, res) => {
   try {
     const { approvalNotes } = req.body;
     const leaveRequest = await LeaveRequest.findByIdAndUpdate(
@@ -116,30 +149,31 @@ router.patch('/:id/approve', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANA
   }
 });
 
-// Reject leave request
-router.patch('/:id/reject', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER']), async (req, res) => {
+// Reject leave request (for supervisors and managers)
+router.patch('/:id/reject', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER', 'SUPERVISOR']), async (req, res) => {
   try {
-    const { approvalNotes } = req.body;
+    const { rejectionNotes } = req.body;
     const leaveRequest = await LeaveRequest.findByIdAndUpdate(
       req.params.id,
       {
         status: 'REJECTED',
-        approvalNotes,
+        approvedBy: req.user.userId,
+        approvalNotes: rejectionNotes,
         updatedAt: new Date()
       },
       { new: true }
-    ).populate(['userId']);
+    ).populate(['userId', 'approvedBy']);
 
     if (!leaveRequest) {
       return res.status(404).json({ success: false, message: 'Leave request not found' });
     }
 
-    // Log rejection
     await AuditLog.create({
       action: 'REJECT_LEAVE_REQUEST',
       actionPerformerId: req.user.userId,
       resourceType: 'LEAVE_REQUEST',
-      resourceId: leaveRequest._id.toString()
+      resourceId: leaveRequest._id.toString(),
+      details: { rejectionNotes }
     });
 
     res.json({ success: true, message: 'Leave request rejected', leaveRequest });
@@ -149,3 +183,19 @@ router.patch('/:id/reject', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAG
 });
 
 module.exports = router;
+
+// Get leave requests for supervisor's staff
+router.get('/supervisor/:supervisorId', authMiddleware, roleMiddleware(['SUPERVISOR']), async (req, res) => {
+  try {
+    const leaveRequests = await LeaveRequest.find({
+      escalatedTo: req.params.supervisorId,
+      status: 'PENDING'
+    })
+      .populate('userId', 'username firstName lastName baseRole')
+      .sort({ createdAt: -1 });
+
+    res.json({ success: true, leaveRequests });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
