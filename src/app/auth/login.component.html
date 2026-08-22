@@ -1,0 +1,16 @@
+<!-- Only show login form if NOT logged in -->
+<div *ngIf="!isAuthenticated" class="auth-container">
+  <h2>Login</h2>
+  <form [formGroup]="loginForm">
+    <!-- Username/password fields here... -->
+  </form>
+</div>
+
+<!-- Shgrep -r "password" src/app/  # Checks for any passwords in codegrep -r "password" src/app/  # Checks for any passwords in codeow dashboard after login (no credentials needed) -->
+<div *ngIf="isAuthenticated" class="dashboard-container">
+  <h2>Welcome, {{ userName }}!</h2>
+  <p>Your dashboard shows staff structure automatically.</p>
+  
+  <!-- SAFE: This is your existing Team Structure visualization -->
+  <app-team-overview></app-team-overview> 
+</div>
