@@ -6,7 +6,7 @@ import { AuthService } from '../../../services/auth.service';
   selector: 'app-audit-logs',
   standalone: true,
   imports: [CommonModule],
-  template: `
+  template: `  
     <div class="audit-page">
       <h1>Audit Logs</h1>
       <p>Complete action history and traceability.</p>
@@ -16,7 +16,7 @@ import { AuthService } from '../../../services/auth.service';
         <p><strong>Features:</strong></p>
         <ul>
           <li>Complete timestamp of all actions</li>
-          <li>Tracks user who performed action</li>
+          <li>Tracks User who performed action</li>
           <li>Records "on behalf of" for acting roles</li>
           <li>Logs all role delegations and expirations</li>
           <li>Tracks leave request auto-escalations</li>
