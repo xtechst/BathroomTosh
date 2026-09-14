@@ -165,10 +165,9 @@ import { User, Task } from '../../../models';
               <div class="form-group">
                 <label>Select Staff Member *</label>
                 <select formControlName="staffId" (click)="loadStaff()" (change)="onStaffSelectionChange()">
-                  <option value="">Choose a Staff Member ({{ staff().length }} available)</option>
-                  <option *ngFor="let member of (supervisorSpecificStaff().length ? supervisorSpecificStaff() : staff()); trackBy: trackByUserId" [value]="member._id || member.id || ''">
+                  <option value="">Choose a Staff Member ({{ unassignedStaff().length }} available)</option>
+                  <option *ngFor="let member of unassignedStaff(); trackBy: trackByUserId" [value]="member._id || member.id || ''">
                     👷 {{ member.firstName || '' }} {{ member.lastName || '' }} ({{ member.username }})
-                    <ng-container *ngIf="member.supervisorId"> - Assigned to {{ getSupervisorDisplay(member.supervisorId) }}</ng-container>
                   </option>
                 </select>
                 <span class="error" *ngIf="assignForm.get('staffId')?.invalid && assignForm.get('staffId')?.touched">
@@ -241,7 +240,14 @@ import { User, Task } from '../../../models';
       border-radius: 12px;
       width: 100%;
       max-width: 900px;
+      box-sizing: border-box;
+      align-self: center;
       box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+    }
+
+    .section form {
+      width: 100%;
+      margin: 0 auto;
     }
 
     .org-tree-section {
@@ -676,13 +682,17 @@ export class ManagerStaffComponent implements OnInit {
     return this.staff().filter(member => this.resolveSupervisorId(member.supervisorId) === supervisorId);
   }
 
+  unassignedStaff(): User[] {
+    return this.staff().filter(member => !this.resolveSupervisorId(member.supervisorId));
+  }
+
   countSupervisorStaff(supervisorId: string): number {
     return this.getSupervisorStaff(supervisorId).length;
   }
 
-  trackByUserId(index: number, item: User): string {
+  trackByUserId = (index: number, item: User): string => {
     return this.resolveUserId(item) || `${item.username}_${index}`;
-  }
+  };
 
   loadStaffTasksForUser(staffMember: User): void {
     this.selectedTaskStaff.set(staffMember);
@@ -718,8 +728,10 @@ export class ManagerStaffComponent implements OnInit {
       this.currentUser.set(user);
       if (user) {
         // load data after we have the current manager id so we can use manager-scoped endpoints
-        this.loadSupervisors();
-        this.loadStaff();
+        setTimeout(() => {
+          this.loadSupervisors();
+          this.loadStaff();
+        });
       }
     });
   }

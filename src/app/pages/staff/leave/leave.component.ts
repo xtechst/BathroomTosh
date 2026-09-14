@@ -305,8 +305,9 @@ export class StaffLeaveComponent implements OnInit {
 
   private loadLeaveRequests() {
     const user = this.authService.getCurrentUser();
-    if (user && user._id) {
-      this.leaveService.getUserLeaveRequests(user._id).subscribe({
+    const userId = user?._id || user?.id;
+    if (userId) {
+      this.leaveService.getUserLeaveRequests(userId).subscribe({
         next: (response) => {
           if (response.success) {
             this.leaveRequests.set(response.leaveRequests);

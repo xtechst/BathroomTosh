@@ -40,7 +40,7 @@ import { BaseRole, User, Task } from '../../models';
             </a>
 
           <!-- Supervisor Actions -->
-            <a *ngIf="canManageRoster()" routerLink="/supervisor/roster" class="action-card supervisor">
+            <a *ngIf="isSupervisorRole()" routerLink="/supervisor/roster" class="action-card supervisor">
               <div class="action-icon">📊</div>
               <div class="action-title">Manage Roster</div>
               <p>View and manage staff roster</p>
@@ -170,7 +170,6 @@ import { BaseRole, User, Task } from '../../models';
           </div>
 
           <div class="manager-links">
-            <a routerLink="/manager/staff-view" class="manager-link-card">View Staff Structure</a>
             <a routerLink="/manager/acting-roles" class="manager-link-card">Assign Tasks to Supervisors</a>
             <a routerLink="/manager/leave-approvals" class="manager-link-card">Approve Leave Requests</a>
           </div>
@@ -182,10 +181,10 @@ import { BaseRole, User, Task } from '../../models';
             <div *ngIf="managerStats().leaveRequests.length > 0" class="leave-requests-list">
                 <div *ngFor="let request of managerStats().leaveRequests.slice(0, 5)" class="leave-request-item">
                   <div class="request-header">
-                    <strong>{{ request.user?.firstName }} {{ request.user?.lastName }}</strong>
+                    <strong>{{ request.userId?.firstName || request.userId?.username || 'Unknown user' }} {{ request.userId?.lastName }}</strong>
                     <span class="request-status" [class]="'status-' + request.status.toLowerCase()">{{ request.status }}</span>
                   </div>
-                  <p>Type: {{ request.type }} | From: {{ request.startDate | date:'shortDate' }} to {{ request.endDate | date:'shortDate' }}</p>
+                  <p>Type: {{ request.leaveType }} | From: {{ request.startDate | date:'shortDate' }} to {{ request.endDate | date:'shortDate' }}</p>
                   <p>{{ request.reason }}</p>
                 </div>
               </div>
@@ -264,7 +263,7 @@ import { BaseRole, User, Task } from '../../models';
 
             <div class="supervisor-links">
               <a routerLink="/supervisor/assignments" class="supervisor-link-card">Assign Tasks</a>
-              <a routerLink="/supervisor/roster" class="supervisor-link-card">Manage Roster</a>
+              <a *ngIf="isSupervisorRole()" routerLink="/supervisor/roster" class="supervisor-link-card">Manage Roster</a>
               <a routerLink="/supervisor/staff-view" class="supervisor-link-card">View Staff</a>
             </div>
           </div>
@@ -1143,6 +1142,13 @@ export class DashboardComponent implements OnInit {
 
       const stats = this.computeTaskStats(allTasks, supervisors.length, allStaff.length);
       this.stats.set(stats);
+
+      const leaveResponse = await firstValueFrom(this.leaveService.getPendingLeaveRequests());
+      this.managerStats.update(current => ({
+        ...current,
+        leaveRequests: leaveResponse.success ? leaveResponse.leaveRequests || [] : [],
+        pendingLeaveRequests: leaveResponse.success ? (leaveResponse.leaveRequests || []).length : 0
+      }));
 
     } catch (error) {
       console.error('Failed to load manager task overview:', error);

@@ -61,12 +61,34 @@ import { Task } from '../../../models';
                 </div>
               </div>
 
+              <div class="task-response" *ngIf="!task.taskAcceptance || task.taskAcceptance === 'PENDING'">
+                <p class="response-hint">Please respond to this task assignment.</p>
+                <button type="button" (click)="respondToTask(task, 'ACCEPTED')" [disabled]="isResponding(task)">Accept Task</button>
+                <button type="button" class="reject-button" (click)="rejectTask(task)" [disabled]="isResponding(task)">Reject Task</button>
+              </div>
+
+              <div class="task-response accepted" *ngIf="task.taskAcceptance === 'ACCEPTED'">
+                <strong>Accepted</strong>
+                <label class="proof-upload">
+                  Upload proof document
+                  <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" (change)="uploadProof(task, $event)" [disabled]="isUploading(task)" />
+                </label>
+                <span class="upload-status" *ngIf="uploadingTaskId() === task._id || uploadingTaskId() === task.id">Uploading...</span>
+                <ul class="proof-list" *ngIf="task.proofDocuments?.length">
+                  <li *ngFor="let proof of task.proofDocuments">{{ proof.originalName }}</li>
+                </ul>
+              </div>
+
+              <div class="task-response rejected" *ngIf="task.taskAcceptance === 'REJECTED'">
+                Rejected{{ task.rejectionReason ? ': ' + task.rejectionReason : '' }}
+              </div>
+
               <div class="checklist" *ngIf="task.checklist && task.checklist.length > 0">
                   <h4>Checklist:</h4>
                   <ul>
                     <li *ngFor="let item of task.checklist" [ngClass]="item.isCompleted ? 'completed' : ''">
                       <span class="check">{{ item.isCompleted ? '✓' : '○' }}</span>
-                      {{ item.title }}
+                      {{ item.name }}
                     </li>
                   </ul>
                 </div>
@@ -291,6 +313,54 @@ import { Task } from '../../../models';
       border-top: 1px solid #eee;
     }
 
+    .task-response {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid #eee;
+    }
+
+    .response-hint {
+      margin: 0 0 0.75rem;
+      color: #666;
+    }
+
+    .task-response button {
+      margin-right: 0.5rem;
+    }
+
+    .task-response .reject-button {
+      background: #c62828;
+    }
+
+    .task-response.accepted {
+      color: #2e7d32;
+    }
+
+    .task-response.rejected {
+      color: #c62828;
+      font-weight: 600;
+    }
+
+    .proof-upload {
+      display: block;
+      margin-top: 0.75rem;
+      color: #333;
+      font-weight: 600;
+    }
+
+    .proof-upload input {
+      display: block;
+      margin-top: 0.4rem;
+      font-weight: normal;
+    }
+
+    .proof-list {
+      margin: 0.5rem 0 0;
+      padding-left: 1.25rem;
+      color: #555;
+      font-weight: normal;
+    }
+
     .checklist h4 {
       margin: 0 0 0.7rem 0;
       font-size: 0.9rem;
@@ -353,6 +423,8 @@ export class TasksComponent implements OnInit {
   currentUser = signal<any>(null);
   isLoading = signal(false);
   error = signal('');
+  respondingTaskId = signal('');
+  uploadingTaskId = signal('');
 
   constructor(
     private taskService: TaskService,
@@ -379,7 +451,10 @@ export class TasksComponent implements OnInit {
     this.taskService.getTasksForUser(userId).subscribe({
       next: (response: any) => {
         if (response.success && response.tasks) {
-          this.tasks.set(response.tasks);
+          this.tasks.set(response.tasks.map((task: Task) => ({
+            ...task,
+            checklist: task.checklist || task.checklistItems || []
+          })));
         } else if (Array.isArray(response)) {
           this.tasks.set(response);
         } else {
@@ -406,5 +481,76 @@ export class TasksComponent implements OnInit {
       day: 'numeric'
     };
     return d.toLocaleDateString('en-US', options);
+  }
+
+  isResponding(task: Task): boolean {
+    return this.respondingTaskId() === (task._id || task.id || '');
+  }
+
+  isUploading(task: Task): boolean {
+    return this.uploadingTaskId() === (task._id || task.id || '');
+  }
+
+  respondToTask(task: Task, decision: 'ACCEPTED' | 'REJECTED', rejectionReason?: string): void {
+    const taskId = task._id || task.id || '';
+    if (!taskId) return;
+
+    this.respondingTaskId.set(taskId);
+    this.error.set('');
+    this.taskService.respondToTask(taskId, decision, rejectionReason).subscribe({
+      next: response => {
+        if (response.success) {
+          this.tasks.update(tasks => tasks.map(current =>
+            (current._id || current.id) === taskId
+              ? { ...current, ...response.task, checklist: response.task.checklist || response.task.checklistItems || [] }
+              : current
+          ));
+        } else {
+          this.error.set(response.message || 'Unable to update task response');
+        }
+        this.respondingTaskId.set('');
+      },
+      error: error => {
+        this.error.set(error.error?.message || 'Unable to update task response');
+        this.respondingTaskId.set('');
+      }
+    });
+  }
+
+  rejectTask(task: Task): void {
+    const reason = window.prompt('Why are you rejecting this task?');
+    if (reason?.trim()) this.respondToTask(task, 'REJECTED', reason.trim());
+  }
+
+  uploadProof(task: Task, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const taskId = task._id || task.id || '';
+    if (!file || !taskId) return;
+
+    this.uploadingTaskId.set(taskId);
+    this.error.set('');
+    this.taskService.uploadTaskProof(taskId, file).subscribe({
+      next: response => {
+        if (response.success) {
+          this.tasks.update(tasks => tasks.map(current =>
+            (current._id || current.id) === taskId ? {
+              ...current,
+              ...response.task,
+              checklist: response.task.checklist || response.task.checklistItems || []
+            } : current
+          ));
+        } else {
+          this.error.set(response.message || 'Unable to upload proof');
+        }
+        input.value = '';
+        this.uploadingTaskId.set('');
+      },
+      error: error => {
+        this.error.set(error.error?.message || 'Unable to upload proof');
+        input.value = '';
+        this.uploadingTaskId.set('');
+      }
+    });
   }
 }

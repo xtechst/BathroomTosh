@@ -81,6 +81,15 @@ import { User, Task } from '../../../models';
             <input type="date" formControlName="dueDate" />
           </div>
 
+          <div class="form-group">
+            <label>Repeat</label>
+            <select formControlName="recurrence">
+              <option value="NONE">Does not repeat</option>
+              <option value="WEEKLY">Weekly</option>
+              <option value="MONTHLY">Monthly</option>
+            </select>
+          </div>
+
           <button type="submit" [disabled]="taskForm.invalid || isCreatingTask()">
             {{ isCreatingTask() ? 'Creating...' : 'Create & Assign Task' }}
           </button>
@@ -255,7 +264,8 @@ export class AssignmentsComponent implements OnInit {
       area: ['', Validators.required],
       priority: ['MEDIUM'],
       assignedTo: ['', Validators.required],
-      dueDate: ['']
+      dueDate: [''],
+      recurrence: ['NONE']
     });
   }
 
@@ -308,7 +318,9 @@ export class AssignmentsComponent implements OnInit {
           this.taskForm.reset({
             priority: 'MEDIUM',
             area: '',
-            assignedTo: ''
+            assignedTo: '',
+            dueDate: '',
+            recurrence: 'NONE'
           });
           setTimeout(() => {
             this.createTaskSuccess.set('');

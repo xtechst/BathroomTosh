@@ -273,11 +273,14 @@
 }
 
 .app-main.with-navbar {
+  display: contents;
   min-height: calc(100vh - 70px);
   padding: 2rem;
 }
 
 .app-main.with-navbar > * {
+  display: block;
+  width: 100%;
   max-width: 1400px;
   margin: 0 auto;
 }

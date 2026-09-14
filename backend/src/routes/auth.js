@@ -30,13 +30,20 @@ const initializeDemoUsers = async () => {
     
     await User.insertMany(DEMO_USERS);
 
+    const manager = await User.findOne({ username: 'manager' });
     const supervisor = await User.findOne({ username: 'supervisor' });
     const staff = await User.findOne({ username: 'staff' });
 
+    if (manager && supervisor) {
+      supervisor.managerId = manager._id;
+      await supervisor.save();
+    }
+
     if (supervisor && staff) {
       staff.supervisorId = supervisor._id;
+      staff.managerId = manager?._id || null;
       await staff.save();
-      console.log('✓ Staff assigned to supervisor');
+      console.log('✓ Demo team hierarchy initialized');
     }
 
     console.log('✓ Demo users initialized');
@@ -191,9 +198,11 @@ const initializeDemoTasks = async () => {
   }
 };
 
-// Initialize on module load
-initializeDemoUsers();
-setTimeout(() => initializeDemoTasks(), 1000);
+// Demo data is opt-in so production restarts never delete real records.
+if (process.env.SEED_DEMO_DATA === 'true') {
+  initializeDemoUsers();
+  setTimeout(() => initializeDemoTasks(), 1000);
+}
 
 // Login endpoint
 router.post('/login', async (req, res) => {

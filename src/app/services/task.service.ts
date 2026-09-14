@@ -1,6 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
+import { map } from 'rxjs/operators';
 import {
   Task,
   Area,
@@ -44,7 +45,7 @@ export class TaskService {
   private apiUrl = environment.apiUrl;
 
   constructor(private authService: AuthService, private http: HttpClient) {
-    this.initializeMockData();
+    this.areasSubject.next([]);
   }
 
   /**
@@ -102,12 +103,12 @@ export class TaskService {
   getUserTasks(): Observable<Task[]> {
     const user = this.authService.getCurrentUser();
     if (!user) {
-      return new BehaviorSubject([]).asObservable();
+      return new BehaviorSubject<Task[]>([]).asObservable();
     }
 
-    return new BehaviorSubject(
-      this.tasks.filter(t => t.assignedTo === user.id)
-    ).asObservable();
+    return this.getTasksForUser(user.id || user._id || '').pipe(
+      map(response => response.tasks || [])
+    );
   }
 
   /**
@@ -476,7 +477,7 @@ export class TaskService {
    * API: Get tasks for a specific user
    */
   getTasksForUser(userId: string): Observable<{ success: boolean; tasks: Task[] }> {
-    return this.http.get<any>(`${this.apiUrl}/tasks/user/${userId}`);
+    return this.http.get<{ success: boolean; tasks: Task[] }>(`${this.apiUrl}/tasks/user/${userId}`);
   }
 
   /**
@@ -498,6 +499,16 @@ export class TaskService {
    */
   updateTaskStatus(taskId: string, status: string): Observable<any> {
     return this.http.patch<any>(`${this.apiUrl}/tasks/${taskId}/status`, { status });
+  }
+
+  respondToTask(taskId: string, decision: 'ACCEPTED' | 'REJECTED', rejectionReason?: string): Observable<any> {
+    return this.http.patch<any>(`${this.apiUrl}/tasks/${taskId}/acceptance`, { decision, rejectionReason });
+  }
+
+  uploadTaskProof(taskId: string, file: File): Observable<any> {
+    const formData = new FormData();
+    formData.append('proof', file);
+    return this.http.post<any>(`${this.apiUrl}/tasks/${taskId}/proof`, formData);
   }
 
   /**

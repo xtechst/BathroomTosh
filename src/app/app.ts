@@ -13,7 +13,7 @@ import { filter } from 'rxjs/operators';
   styleUrl: './app.css'
 })
 export class App {
-  protected readonly title = signal('BathroomTosh');
+  readonly title = signal('BathroomTosh');
   
   currentUser = signal<User | null>(null);
   activeActingAssignment = signal<ActingAssignment | null>(null);

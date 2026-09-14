@@ -1,10 +1,61 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const Task = require('../models/Task');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
+
+const proofUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, callback) => {
+      const destination = path.join(__dirname, '../../uploads/task-proofs');
+      fs.mkdirSync(destination, { recursive: true });
+      callback(null, destination);
+    },
+    filename: (req, file, callback) => {
+      const safeName = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_');
+      callback(null, `${Date.now()}-${safeName}`);
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, callback) => {
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    callback(null, allowed.includes(file.mimetype));
+  }
+});
+
+const canAccessTask = (task, user) => {
+  if (user.baseRole === 'TECH_ADMIN') return true;
+  return task.assignedTo.toString() === user.userId || task.assignedBy.toString() === user.userId;
+};
+
+const canViewUserTasks = async (requester, targetUserId) => {
+  if (requester.baseRole === 'TECH_ADMIN' || requester.userId === targetUserId) {
+    return true;
+  }
+
+  const targetUser = await User.findById(targetUserId).select('baseRole supervisorId managerId');
+  if (!targetUser) return false;
+
+  if (requester.baseRole === 'SUPERVISOR') {
+    return targetUser.supervisorId?.toString() === requester.userId;
+  }
+
+  if (requester.baseRole === 'MANAGER') {
+    if (targetUser.managerId?.toString() === requester.userId) return true;
+
+    if (targetUser.supervisorId) {
+      const supervisor = await User.findById(targetUser.supervisorId).select('managerId');
+      return supervisor?.managerId?.toString() === requester.userId;
+    }
+  }
+
+  return false;
+};
 
 /**
  * Validate task assignment based on role hierarchy
@@ -55,6 +106,10 @@ const validateTaskAssignment = async (assignerId, assignerRole, assigneeId) => {
 // Get user's tasks
 router.get('/user/:userId', authMiddleware, async (req, res) => {
   try {
+    if (!(await canViewUserTasks(req.user, req.params.userId))) {
+      return res.status(403).json({ success: false, message: 'You cannot view tasks for this user' });
+    }
+
     const tasks = await Task.find({ assignedTo: req.params.userId })
       .populate('assignedTo', 'username baseRole')
       .populate('assignedBy', 'username baseRole');
@@ -68,7 +123,7 @@ router.get('/user/:userId', authMiddleware, async (req, res) => {
 // Create task
 router.post('/', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER', 'SUPERVISOR']), async (req, res) => {
   try {
-    const { title, description, area, assignedTo, checklistItems, dueDate, priority } = req.body;
+    const { title, description, area, assignedTo, checklistItems, dueDate, recurrence, priority } = req.body;
 
     // Validate task assignment based on role hierarchy
     const validation = await validateTaskAssignment(req.user.userId, req.user.baseRole, assignedTo);
@@ -84,6 +139,7 @@ router.post('/', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER', 'SUPER
       assignedBy: req.user.userId,
       checklistItems,
       dueDate,
+      recurrence: recurrence || 'NONE',
       priority
     });
 
@@ -116,6 +172,10 @@ router.get('/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
 
+    if (!canAccessTask(task, req.user)) {
+      return res.status(403).json({ success: false, message: 'You cannot access this task' });
+    }
+
     res.json({ success: true, task });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -136,6 +196,10 @@ router.patch('/:id/status', authMiddleware, async (req, res) => {
 
     if (!task) {
       return res.status(404).json({ success: false, message: 'Task not found' });
+    }
+
+    if (!canAccessTask(task, req.user)) {
+      return res.status(403).json({ success: false, message: 'You cannot update this task' });
     }
 
     // Check if all boolean checklist items are toggled before completion
@@ -174,6 +238,80 @@ router.patch('/:id/status', authMiddleware, async (req, res) => {
   }
 });
 
+// Accept or reject a task offer. Only the assigned staff member may respond.
+router.patch('/:id/acceptance', authMiddleware, async (req, res) => {
+  try {
+    const { decision, rejectionReason } = req.body;
+    if (!['ACCEPTED', 'REJECTED'].includes(decision)) {
+      return res.status(400).json({ success: false, message: 'Decision must be ACCEPTED or REJECTED' });
+    }
+
+    const task = await Task.findById(req.params.id);
+    if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
+    if (task.assignedTo.toString() !== req.user.userId) {
+      return res.status(403).json({ success: false, message: 'Only the assigned staff member can respond' });
+    }
+    if (task.taskAcceptance !== 'PENDING') {
+      return res.status(409).json({ success: false, message: 'This task has already been accepted or rejected' });
+    }
+    if (decision === 'REJECTED' && !String(rejectionReason || '').trim()) {
+      return res.status(400).json({ success: false, message: 'A rejection reason is required' });
+    }
+
+    task.taskAcceptance = decision;
+    task.acceptedAt = decision === 'ACCEPTED' ? new Date() : null;
+    task.rejectedAt = decision === 'REJECTED' ? new Date() : null;
+    task.rejectionReason = decision === 'REJECTED' ? String(rejectionReason).trim() : '';
+    if (decision === 'ACCEPTED' && task.status === 'PENDING') task.status = 'IN_PROGRESS';
+    task.updatedAt = new Date();
+    await task.save();
+
+    await AuditLog.create({
+      action: decision === 'ACCEPTED' ? 'ACCEPT_TASK' : 'REJECT_TASK',
+      actionPerformerId: req.user.userId,
+      resourceType: 'TASK',
+      resourceId: task._id.toString(),
+      details: { rejectionReason: task.rejectionReason }
+    });
+
+    res.json({ success: true, message: `Task ${decision.toLowerCase()}`, task });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Upload proof for an accepted task. Only the assigned staff member may upload.
+router.post('/:id/proof', authMiddleware, proofUpload.single('proof'), async (req, res) => {
+  try {
+    const task = await Task.findById(req.params.id);
+    if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
+    if (task.assignedTo.toString() !== req.user.userId) {
+      return res.status(403).json({ success: false, message: 'Only the assigned staff member can upload proof' });
+    }
+    if (task.taskAcceptance !== 'ACCEPTED') {
+      return res.status(409).json({ success: false, message: 'Accept the task before uploading proof' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'A PDF, JPG, PNG, or WEBP proof file is required' });
+    }
+
+    task.proofDocuments.push({
+      originalName: req.file.originalname,
+      fileName: req.file.filename,
+      path: `/uploads/task-proofs/${req.file.filename}`,
+      mimeType: req.file.mimetype,
+      size: req.file.size,
+      uploadedBy: req.user.userId
+    });
+    task.updatedAt = new Date();
+    await task.save();
+
+    res.status(201).json({ success: true, message: 'Proof uploaded', task });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Add note to task
 router.post('/:id/notes', authMiddleware, async (req, res) => {
   try {
@@ -182,6 +320,10 @@ router.post('/:id/notes', authMiddleware, async (req, res) => {
 
     if (!task) {
       return res.status(404).json({ success: false, message: 'Task not found' });
+    }
+
+    if (!canAccessTask(task, req.user)) {
+      return res.status(403).json({ success: false, message: 'You cannot add notes to this task' });
     }
 
     const note = {
@@ -220,6 +362,10 @@ router.post('/:taskId/notes/:noteId/comments', authMiddleware, async (req, res) 
 
     if (!task) {
       return res.status(404).json({ success: false, message: 'Task not found' });
+    }
+
+    if (!canAccessTask(task, req.user)) {
+      return res.status(403).json({ success: false, message: 'You cannot comment on this task' });
     }
 
     const note = task.notes.id(req.params.noteId);

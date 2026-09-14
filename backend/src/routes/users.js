@@ -81,9 +81,12 @@ router.get('/supervisor/:supervisorId', authMiddleware, roleMiddleware(['TECH_AD
 // Get supervisors under a manager
 router.get('/manager/:managerId/supervisors', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER']), async (req, res) => {
   try {
-    // For now, return all supervisors since we don't have a direct manager-supervisor relationship
-    // In a real system, you'd have a managerId field on supervisors
-    const supervisors = await User.find({ baseRole: 'SUPERVISOR' })
+    const managerId = req.params.managerId;
+    if (req.user.baseRole === 'MANAGER' && req.user.userId !== managerId) {
+      return res.status(403).json({ success: false, message: 'You can only view your own team' });
+    }
+
+    const supervisors = await User.find({ baseRole: 'SUPERVISOR', managerId })
       .select('-password')
       .populate('supervisorId', 'username firstName lastName')
       .populate('managerId', 'username firstName lastName');
@@ -103,7 +106,25 @@ router.get('/role/:role', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER
       return res.status(400).json({ success: false, message: 'Invalid role' });
     }
 
-    const users = await User.find({ baseRole: role.toUpperCase() })
+    const normalizedRole = role.toUpperCase();
+    let filter = { baseRole: normalizedRole };
+
+    if (req.user.baseRole === 'MANAGER') {
+      if (normalizedRole === 'SUPERVISOR') {
+        filter.managerId = req.user.userId;
+      } else if (normalizedRole === 'STAFF') {
+        const supervisors = await User.find({
+          baseRole: 'SUPERVISOR',
+          managerId: req.user.userId
+        }).select('_id');
+        filter.$or = [
+          { managerId: req.user.userId },
+          { supervisorId: { $in: supervisors.map(supervisor => supervisor._id) } }
+        ];
+      }
+    }
+
+    const users = await User.find(filter)
       .select('-password')
       .populate('supervisorId', 'username firstName lastName')
       .populate('managerId', 'username firstName lastName');
@@ -218,9 +239,17 @@ router.put('/:id/supervisor', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MAN
       return res.status(400).json({ success: false, message: 'Selected user is not a supervisor' });
     }
 
+    if (req.user.baseRole === 'MANAGER' && supervisor.managerId?.toString() !== req.user.userId) {
+      return res.status(403).json({ success: false, message: 'Supervisor is not part of your team' });
+    }
+
     const staff = await User.findByIdAndUpdate(
       req.params.id,
-      { supervisorId, updatedAt: new Date() },
+      {
+        supervisorId,
+        managerId: supervisor.managerId || (req.user.baseRole === 'MANAGER' ? req.user.userId : null),
+        updatedAt: new Date()
+      },
       { new: true }
     )
       .select('-password')

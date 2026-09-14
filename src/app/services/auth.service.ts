@@ -1,7 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, interval } from 'rxjs';
-import { map, startWith, tap, catchError } from 'rxjs/operators';
+import { map, startWith, tap, catchError, finalize } from 'rxjs/operators';
 import { of } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { 
@@ -41,14 +41,51 @@ export class AuthService {
   private apiUrl = environment.apiUrl;
   
   constructor(private http: HttpClient) {
-    // Load user from localStorage if exists
+    this.restoreSession();
+    this.initializeActingRoleMonitor();
+  }
+
+  private restoreSession(): void {
+    if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') return;
+
+    const token = localStorage.getItem('authToken');
     const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      const user = JSON.parse(savedUser);
+
+    if (!token || !savedUser) return;
+
+    try {
+      const user = JSON.parse(savedUser) as User;
       this.currentUserSubject.set(user);
       this.currentUser$.next(user);
+    } catch {
+      this.clearSession();
+      return;
     }
-    this.initializeActingRoleMonitor();
+
+    this.http.get<{ success: boolean; user: User }>(`${this.apiUrl}/auth/me`).pipe(
+      tap(response => {
+        if (response.success && response.user) {
+          localStorage.setItem('currentUser', JSON.stringify(response.user));
+          this.currentUserSubject.set(response.user);
+          this.currentUser$.next(response.user);
+        }
+      }),
+      catchError(() => {
+        this.clearSession();
+        return of(null);
+      })
+    ).subscribe();
+  }
+
+  private clearSession(): void {
+    if (typeof localStorage !== 'undefined' && typeof localStorage.removeItem === 'function') {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('currentUser');
+    }
+    this.currentUserSubject.set(null);
+    this.actingAssignmentSubject.set(null);
+    this.currentUser$.next(null);
+    this.actingAssignment$.next(null);
   }
 
   /**
@@ -78,19 +115,10 @@ export class AuthService {
   logout(): void {
     this.http.post(`${this.apiUrl}/auth/logout`, {}).subscribe({
       next: () => {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('currentUser');
-        this.currentUserSubject.set(null);
-        this.actingAssignmentSubject.set(null);
-        this.currentUser$.next(null);
-        this.actingAssignment$.next(null);
+        this.clearSession();
       },
       error: () => {
-        // Still logout even if API call fails
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('currentUser');
-        this.currentUserSubject.set(null);
-        this.currentUser$.next(null);
+        this.clearSession();
       }
     });
   }

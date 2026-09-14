@@ -65,7 +65,38 @@ const TaskSchema = new mongoose.Schema({
     enum: ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
     default: 'PENDING'
   },
+  taskAcceptance: {
+    type: String,
+    enum: ['PENDING', 'ACCEPTED', 'REJECTED'],
+    default: 'PENDING'
+  },
+  acceptedAt: {
+    type: Date,
+    default: null
+  },
+  rejectedAt: {
+    type: Date,
+    default: null
+  },
+  rejectionReason: {
+    type: String,
+    default: ''
+  },
+  proofDocuments: [{
+    originalName: String,
+    fileName: String,
+    path: String,
+    mimeType: String,
+    size: Number,
+    uploadedAt: { type: Date, default: Date.now },
+    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  }],
   dueDate: Date,
+  recurrence: {
+    type: String,
+    enum: ['NONE', 'WEEKLY', 'MONTHLY'],
+    default: 'NONE'
+  },
   priority: {
     type: String,
     enum: ['LOW', 'MEDIUM', 'HIGH'],

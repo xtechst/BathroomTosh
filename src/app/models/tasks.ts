@@ -9,10 +9,10 @@ export enum AreaName {
 }
 
 export interface ChecklistItem {
-title: any;
-  id: string;
-  description: string;
+  id?: string;
+  name: string;
   isBoolean: boolean; // True/False toggle items
+  isToggled?: boolean;
   isCompleted?: boolean;
 }
 
@@ -46,11 +46,24 @@ export interface Task {
   description?: string;
   assignedTo?: string; // Staff member ID
   assignedBy?: string; // Supervisor ID
+  checklistItems?: ChecklistItem[];
   checklist?: ChecklistItem[];
   notes?: TaskNote[];
   threadedComments?: ThreadedComment[]; // Linked directly to specific notes
   status?: 'NOT_STARTED' | 'IN_PROGRESS' | 'AWAITING_REVIEW' | 'COMPLETED' | 'BLOCKED' | 'PENDING' | 'CANCELLED';
+  taskAcceptance?: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  acceptedAt?: Date;
+  rejectedAt?: Date;
+  rejectionReason?: string;
+  proofDocuments?: Array<{
+    originalName: string;
+    path: string;
+    mimeType: string;
+    size: number;
+    uploadedAt?: Date;
+  }>;
   priority?: 'LOW' | 'MEDIUM' | 'HIGH';
+  recurrence?: 'NONE' | 'WEEKLY' | 'MONTHLY';
   assignedDate?: Date;
   dueDate?: Date | string;
   completedAt?: Date;
