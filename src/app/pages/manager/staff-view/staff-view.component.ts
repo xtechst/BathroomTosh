@@ -27,58 +27,58 @@ import { User, Task } from '../../../models';
       <!-- Organization Tree -->
       <div class="section org-tree-section">
         <div class="org-tree">
-          <!-- Manager Level -->
-          <div *ngIf="currentUser()" class="tree-level manager-level">
-            <div class="manager-node">
-              <div class="node-header">👔</div>
-              <div class="node-content">
-                <h3>{{ currentUser()!.firstName }} {{ currentUser()!.lastName }}</h3>
-                <p class="role-label">Manager</p>
-                <small>{{ currentUser()!.username }}</small>
-              </div>
-            </div>
-            
-            <!-- Tree connectors -->
-            <div class="tree-connector-down"></div>
+          <div *ngIf="getVisibleTopLevelNodes().length === 0" class="no-data">
+            No team structure available yet.
           </div>
 
-          <!-- Supervisors Level -->
-          <div class="tree-level supervisors-level">
-            <div class="supervisors-container">
-              <div *ngFor="let supervisor of supervisors(); trackBy: trackByUserId" class="supervisor-branch">
-                <div class="supervisor-node">
-                  <div class="node-header">👤</div>
-                  <div class="node-content">
-                    <h4>{{ supervisor.firstName || '' }} {{ supervisor.lastName || '' }}</h4>
-                    <p class="role-label">Supervisor</p>
-                    <small>{{ supervisor.username }}</small>
-                    <span class="staff-count">{{ countSupervisorStaff(resolveUserId(supervisor)) }} staff</span>
-                  </div>
+          <ng-container *ngFor="let topNode of getVisibleTopLevelNodes(); trackBy: trackByUserId">
+            <div class="tree-level manager-level">
+              <div class="manager-node">
+                <div class="node-header">{{ getNodeIcon(topNode) }}</div>
+                <div class="node-content">
+                  <h3>{{ topNode.firstName || '' }} {{ topNode.lastName || '' }}</h3>
+                  <p class="role-label">{{ getRoleLabel(topNode) }}</p>
+                  <small>{{ topNode.username }}</small>
+                  <span *ngIf="getRoleLabel(topNode).toUpperCase() === 'MANAGER' || getRoleLabel(topNode).toUpperCase() === 'SUPERVISOR'" class="staff-count">
+                    {{ countDirectStaffForNode(topNode) }} staff
+                  </span>
                 </div>
+              </div>
+              <div class="tree-connector-down"></div>
+            </div>
 
-                <!-- Staff Level under this supervisor -->
-                <div *ngIf="getSupervisorStaff(resolveUserId(supervisor)).length > 0" class="staff-container">
-                  <div class="tree-connector-down-small"></div>
-                  <div class="staff-grid">
-                    <div *ngFor="let staffMember of getSupervisorStaff(resolveUserId(supervisor)); trackBy: trackByUserId" class="staff-node">
-                      <div class="node-header">👷</div>
-                      <div class="node-content">
-                        <span class="staff-name">{{ staffMember.firstName || '' }} {{ staffMember.lastName || '' }}</span>
-                        <small>{{ staffMember.username }}</small>
+            <div class="tree-level supervisors-level" *ngIf="getChildrenForNode(topNode).length > 0">
+              <div class="supervisors-container">
+                <div *ngFor="let child of getChildrenForNode(topNode); trackBy: trackByUserId" class="supervisor-branch">
+                  <div class="supervisor-node">
+                    <div class="node-header">{{ getNodeIcon(child) }}</div>
+                    <div class="node-content">
+                      <h4>{{ child.firstName || '' }} {{ child.lastName || '' }}</h4>
+                      <p class="role-label">{{ getRoleLabel(child) }}</p>
+                      <small>{{ child.username }}</small>
+                      <span class="staff-count">{{ countDirectStaffForNode(child) }} staff</span>
+                    </div>
+                  </div>
+
+                  <div *ngIf="getChildrenForNode(child).length > 0" class="staff-container">
+                    <div class="tree-connector-down-small"></div>
+                    <div class="staff-grid">
+                      <div *ngFor="let staffMember of getChildrenForNode(child); trackBy: trackByUserId" class="staff-node">
+                        <div class="node-header">👷</div>
+                        <div class="node-content">
+                          <span class="staff-name">{{ staffMember.firstName || '' }} {{ staffMember.lastName || '' }}</span>
+                          <small>{{ staffMember.username }}</small>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                <div *ngIf="getSupervisorStaff(resolveUserId(supervisor)).length === 0" class="no-staff-message">
-                  No staff assigned
+                  <div *ngIf="getChildrenForNode(child).length === 0" class="no-staff-message">
+                    No staff assigned
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-
-          <div *ngIf="supervisors().length === 0" class="no-data">
-            No supervisors loaded yet.
-          </div>
+          </ng-container>
         </div>
       </div>
 
@@ -614,6 +614,7 @@ export class ManagerStaffComponent implements OnInit {
   assignForm!: FormGroup;
 
   currentUser = signal<User | null>(null);
+  managers = signal<User[]>([]);
   staff = signal<User[]>([]);
   supervisors = signal<User[]>([]);
   supervisorSpecificStaff = signal<User[]>([]);
@@ -672,10 +673,84 @@ export class ManagerStaffComponent implements OnInit {
     return user._id || user.id || '';
   }
 
+  resolveManagerId(user: any): string {
+    if (!user) return '';
+    if (typeof user === 'string') return user;
+    return user.managerId || user._managerId || '';
+  }
+
   resolveSupervisorId(supervisorId: any): string {
     if (!supervisorId) return '';
     if (typeof supervisorId === 'string') return supervisorId;
     return supervisorId._id || supervisorId.id || '';
+  }
+
+  getCurrentUserRole(): string {
+    return this.authService.getEffectiveRole();
+  }
+
+  getRoleLabel(user: User): string {
+    return user.baseRole || 'STAFF';
+  }
+
+  getNodeIcon(user: User): string {
+    switch (user.baseRole) {
+      case 'TECH_ADMIN':
+        return '👔';
+      case 'MANAGER':
+        return '👔';
+      case 'SUPERVISOR':
+        return '👤';
+      default:
+        return '👷';
+    }
+  }
+
+  getVisibleTopLevelNodes(): User[] {
+    const role = this.getCurrentUserRole();
+
+    if (role === 'TECH_ADMIN') {
+      return this.managers();
+    }
+
+    if (role === 'MANAGER') {
+      return this.currentUser() ? [this.currentUser()!] : [];
+    }
+
+    if (role === 'SUPERVISOR') {
+      return this.currentUser() ? [this.currentUser()!] : [];
+    }
+
+    return [];
+  }
+
+  getChildrenForNode(node: User): User[] {
+    const nodeId = this.resolveUserId(node);
+    const role = node.baseRole || this.getCurrentUserRole();
+
+    if (role === 'TECH_ADMIN' || role === 'MANAGER') {
+      return this.supervisors().filter(supervisor => this.resolveManagerId(supervisor) === nodeId);
+    }
+
+    if (role === 'SUPERVISOR') {
+      return this.staff().filter(member => this.resolveSupervisorId(member.supervisorId) === nodeId);
+    }
+
+    return [];
+  }
+
+  countDirectStaffForNode(node: User): number {
+    if (node.baseRole === 'SUPERVISOR') {
+      return this.getChildrenForNode(node).length;
+    }
+
+    if (node.baseRole === 'MANAGER' || node.baseRole === 'TECH_ADMIN') {
+      return this.supervisors()
+        .filter(supervisor => this.resolveManagerId(supervisor) === this.resolveUserId(node))
+        .reduce((total, supervisor) => total + this.getChildrenForNode(supervisor).length, 0);
+    }
+
+    return 0;
   }
 
   getSupervisorStaff(supervisorId: string): User[] {
@@ -727,8 +802,8 @@ export class ManagerStaffComponent implements OnInit {
     this.authService.currentUser.subscribe((user: User | null) => {
       this.currentUser.set(user);
       if (user) {
-        // load data after we have the current manager id so we can use manager-scoped endpoints
         setTimeout(() => {
+          this.loadManagers();
           this.loadSupervisors();
           this.loadStaff();
         });
@@ -736,10 +811,23 @@ export class ManagerStaffComponent implements OnInit {
     });
   }
 
+  loadManagers(): void {
+    this.userService.getUsersByRole('MANAGER').subscribe({
+      next: (response: any) => {
+        if (response.success) {
+          this.managers.set(response.users || response.managers || []);
+        }
+      },
+      error: (error: any) => {
+        console.error('Failed to load managers:', error);
+        this.managers.set([]);
+      }
+    });
+  }
+
   loadStaff(): void {
     this.isLoading.set(true);
     this.loadError.set('');
-    // use role-scoped endpoint to directly fetch STAFF users
     this.userService.getUsersByRole('STAFF').subscribe({
       next: (response: any) => {
         if (response.success) {
@@ -756,7 +844,6 @@ export class ManagerStaffComponent implements OnInit {
 
   loadSupervisors(): void {
     const managerId = this.currentUser() ? this.resolveUserId(this.currentUser()!) : '';
-    // prefer role-scoped endpoint for supervisors; manager-scoped is optional
     this.userService.getUsersByRole('SUPERVISOR').subscribe({
       next: (response: any) => {
         if (response.success) {

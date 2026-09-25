@@ -72,7 +72,7 @@ import { User } from '../../../models';
 
           <div class="form-group">
             <label>Assign To Staff</label>
-            <select formControlName="assignedStaff" [disabled]="!staffList().length || isLoadingStaff()">
+            <select formControlName="assignedStaff">
               <option value="">Select Staff</option>
               <option *ngFor="let staff of staffList()" [value]="staff._id || staff.id">
                 {{ staff.firstName }} {{ staff.lastName }}
@@ -322,7 +322,7 @@ export class ActingRolesComponent implements OnInit {
       area: ['', Validators.required],
       priority: ['MEDIUM'],
       assignedTo: ['', Validators.required],
-      assignedStaff: [''],
+      assignedStaff: [{ value: '', disabled: true }],
       dueDate: ['']
     });
   }
@@ -340,6 +340,7 @@ export class ActingRolesComponent implements OnInit {
     const supervisorId = this.taskForm.get('assignedTo')?.value;
     if (!supervisorId) {
       this.staffList.set([]);
+      this.taskForm.get('assignedStaff')?.disable();
       this.taskForm.get('assignedStaff')?.setValue('');
       return;
     }
@@ -350,17 +351,23 @@ export class ActingRolesComponent implements OnInit {
   loadStaffForSupervisor(supervisorId: string): void {
     this.isLoadingStaff.set(true);
     this.staffList.set([]);
-    this.taskForm.get('assignedStaff')?.setValue('');
+    const assignedStaffControl = this.taskForm.get('assignedStaff');
+    assignedStaffControl?.disable();
+    assignedStaffControl?.setValue('');
 
     this.userService.getStaffUnderSupervisor(supervisorId).subscribe({
       next: (response: any) => {
         if (response.success) {
           this.staffList.set(response.staff || []);
+          if ((response.staff || []).length > 0) {
+            assignedStaffControl?.enable();
+          }
         }
         this.isLoadingStaff.set(false);
       },
       error: (error: any) => {
         console.error('Failed to load staff for supervisor:', error);
+        assignedStaffControl?.disable();
         this.isLoadingStaff.set(false);
       }
     });
@@ -412,6 +419,7 @@ export class ActingRolesComponent implements OnInit {
             assignedStaff: '',
             dueDate: ''
           });
+          this.taskForm.get('assignedStaff')?.disable();
           this.staffList.set([]);
           setTimeout(() => {
             this.createTaskSuccess.set('');
