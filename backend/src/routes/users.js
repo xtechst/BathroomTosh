@@ -2,6 +2,7 @@ const express = require('express');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
+const { getRoleScopeFilter, buildManagerTeamQuery } = require('../utils/userVisibility');
 
 const router = express.Router();
 
@@ -55,7 +56,15 @@ router.post('/', authMiddleware, roleMiddleware(['TECH_ADMIN']), async (req, res
 // Get all users
 router.get('/', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER']), async (req, res) => {
   try {
-    const users = await User.find()
+    let filter = {};
+
+    if (req.user.baseRole === 'MANAGER') {
+      const supervisors = await User.find({ baseRole: 'SUPERVISOR', managerId: req.user.userId }).select('_id');
+      const supervisorIds = supervisors.map((supervisor) => supervisor._id);
+      filter = buildManagerTeamQuery(req.user.userId, supervisorIds);
+    }
+
+    const users = await User.find(filter)
       .select('-password')
       .populate('supervisorId', 'username firstName lastName')
       .populate('managerId', 'username firstName lastName');
@@ -68,6 +77,16 @@ router.get('/', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER']), async
 // Get staff under a supervisor (must come BEFORE /:id route)
 router.get('/supervisor/:supervisorId', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER', 'SUPERVISOR']), async (req, res) => {
   try {
+    const supervisor = await User.findById(req.params.supervisorId).select('_id managerId baseRole');
+
+    if (!supervisor) {
+      return res.status(404).json({ success: false, message: 'Supervisor not found' });
+    }
+
+    if (req.user.baseRole === 'MANAGER' && supervisor.managerId?.toString() !== req.user.userId) {
+      return res.status(403).json({ success: false, message: 'Supervisor is not part of your team' });
+    }
+
     const staff = await User.find({ supervisorId: req.params.supervisorId, baseRole: 'STAFF' })
       .select('-password')
       .populate('supervisorId', 'username firstName lastName')
@@ -101,27 +120,27 @@ router.get('/role/:role', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER
   try {
     const { role } = req.params;
     const validRoles = ['TECH_ADMIN', 'MANAGER', 'SUPERVISOR', 'STAFF'];
-    
+
     if (!validRoles.includes(role.toUpperCase())) {
       return res.status(400).json({ success: false, message: 'Invalid role' });
     }
 
-    const normalizedRole = role.toUpperCase();
-    let filter = { baseRole: normalizedRole };
+    let filter = null;
 
     if (req.user.baseRole === 'MANAGER') {
-      if (normalizedRole === 'SUPERVISOR') {
-        filter.managerId = req.user.userId;
-      } else if (normalizedRole === 'STAFF') {
-        const supervisors = await User.find({
-          baseRole: 'SUPERVISOR',
-          managerId: req.user.userId
-        }).select('_id');
-        filter.$or = [
-          { managerId: req.user.userId },
-          { supervisorId: { $in: supervisors.map(supervisor => supervisor._id) } }
-        ];
+      const supervisors = await User.find({
+        baseRole: 'SUPERVISOR',
+        managerId: req.user.userId
+      }).select('_id');
+
+      const supervisorIds = supervisors.map((supervisor) => supervisor._id);
+      filter = getRoleScopeFilter(req.user.baseRole, req.user.userId, role, supervisorIds);
+
+      if (!filter) {
+        return res.status(403).json({ success: false, message: 'You can only view supervisors and staff in your team' });
       }
+    } else {
+      filter = { baseRole: role.toUpperCase() };
     }
 
     const users = await User.find(filter)
@@ -141,9 +160,28 @@ router.get('/:id', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER']), as
       .select('-password')
       .populate('supervisorId', 'username firstName lastName')
       .populate('managerId', 'username firstName lastName');
+
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
+
+    if (req.user.baseRole === 'MANAGER') {
+      const managerTeamIds = new Set();
+      const managerSupervisors = await User.find({ baseRole: 'SUPERVISOR', managerId: req.user.userId }).select('_id');
+      managerSupervisors.forEach((supervisor) => managerTeamIds.add(supervisor._id.toString()));
+
+      const isManagerTeamMember =
+        user.baseRole === 'SUPERVISOR' && user.managerId?.toString() === req.user.userId ||
+        user.baseRole === 'STAFF' && (
+          user.managerId?.toString() === req.user.userId ||
+          managerTeamIds.has(user.supervisorId?._id?.toString?.() || user.supervisorId?.toString?.() || '')
+        );
+
+      if (!isManagerTeamMember) {
+        return res.status(403).json({ success: false, message: 'This user is outside your team' });
+      }
+    }
+
     res.json({ success: true, user });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

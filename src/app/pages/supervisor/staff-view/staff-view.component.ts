@@ -114,7 +114,6 @@ import { User, Task } from '../../../models';
           <table>
             <thead>
               <tr>
-                <th width="30">✓</th>
                 <th>Task Name</th>
                 <th>Priority</th>
                 <th>Due Date</th>
@@ -125,14 +124,6 @@ import { User, Task } from '../../../models';
             </thead>
             <tbody>
               <tr *ngFor="let task of staffTasks()" [class.completed]="task.status === 'COMPLETED'">
-                <td class="checkbox-cell">
-                  <input 
-                    type="checkbox" 
-                    [checked]="task.status === 'COMPLETED'"
-                    (change)="toggleTaskCompletion(task)"
-                    title="Mark as complete"
-                  />
-                </td>
                 <td class="task-name">{{ task.title }}</td>
                 <td>
                   <span [class]="'priority-badge priority-' + (task.priority || 'MEDIUM')">
@@ -142,12 +133,30 @@ import { User, Task } from '../../../models';
                 <td>{{ task.dueDate ? (task.dueDate | date: 'MMM d, yyyy') : 'No due date' }}</td>
                 <td>
                   <span [class]="'status-badge status-' + (task.status || 'PENDING')">
-                    {{ task.status || 'PENDING' }}
+                    {{ getTaskStatusLabel(task) }}
                   </span>
                 </td>
                 <td>{{ task.completedAt ? (task.completedAt | date: 'MMM d, yyyy') : '-' }}</td>
                 <td>
-                  <button type="button" (click)="deleteTask(task._id || task.id || '')" class="delete-btn">Delete</button>
+                  <div class="task-actions">
+                    <button
+                      *ngIf="task.taskAcceptance === 'ACCEPTED' && task.status !== 'IN_PROGRESS'"
+                      type="button"
+                      (click)="setTaskStatus(task, 'IN_PROGRESS')"
+                      [disabled]="isUpdatingTask()"
+                      class="open-btn">
+                      Open
+                    </button>
+                    <button
+                      *ngIf="task.taskAcceptance === 'ACCEPTED' && task.status !== 'COMPLETED'"
+                      type="button"
+                      (click)="setTaskStatus(task, 'COMPLETED')"
+                      [disabled]="isUpdatingTask()"
+                      class="close-task-btn">
+                      Closed
+                    </button>
+                    <button type="button" (click)="deleteTask(task._id || task.id || '')" class="delete-btn">Delete</button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -392,6 +401,22 @@ import { User, Task } from '../../../models';
       background-color: #f3e5f5;
       color: #6a1b9a;
     }
+
+    .task-actions {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .open-btn {
+      background: #1976d2;
+      color: white;
+    }
+
+    .close-task-btn {
+      background: #2e7d32;
+      color: white;
+    }
   `]
 })
 export class SupervisorStaffComponent implements OnInit {
@@ -522,8 +547,15 @@ export class SupervisorStaffComponent implements OnInit {
     });
   }
 
-  toggleTaskCompletion(task: Task): void {
-    const newStatus = task.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
+  getTaskStatusLabel(task: Task): string {
+    if (task.status === 'COMPLETED') return 'Done';
+    if (task.status === 'IN_PROGRESS') return 'Still working';
+    if (task.taskAcceptance === 'REJECTED') return 'Rejected';
+    if (task.taskAcceptance === 'PENDING') return 'Awaiting response';
+    return task.status || 'Open';
+  }
+
+  setTaskStatus(task: Task, newStatus: 'IN_PROGRESS' | 'COMPLETED'): void {
     this.isUpdatingTask.set(true);
 
     const taskId = task._id || task.id || '';
