@@ -4,6 +4,7 @@ const ActingAssignment = require('../models/ActingAssignment');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
+const { canApproveLeaveRequest, hasAssignedSupervisor } = require('../utils/leaveApprovalPolicy');
 
 const router = express.Router();
 
@@ -31,40 +32,33 @@ router.post('/', authMiddleware, async (req, res) => {
     if (user.baseRole === 'TECH_ADMIN') {
       status = 'APPROVED';
       approvedBy = req.user.userId;
-    }
-
-    if (autoEscalated) {
-      const actingSupervisor = await User.findById(actingAssignment.originalUserId)
-        .select('managerId baseRole');
-      const manager = actingSupervisor?.managerId
-        ? await User.findOne({ _id: actingSupervisor.managerId, baseRole: 'MANAGER' })
-        : null;
-
-      if (!manager) {
-        return res.status(409).json({
-          success: false,
-          message: 'The acting supervisor is not assigned to a manager'
-        });
-      }
-      escalatedTo = manager._id;
     } else if (user.baseRole === 'STAFF') {
-      escalatedTo = user.supervisorId;
-      if (!escalatedTo) {
+      const supervisor = user.supervisorId
+        ? await User.findOne({ _id: user.supervisorId, baseRole: 'SUPERVISOR' }).select('_id baseRole')
+        : null;
+      if (!hasAssignedSupervisor(user, supervisor)) {
         return res.status(409).json({
           success: false,
           message: 'You must be assigned to a supervisor before submitting leave'
         });
       }
 
-      const supervisor = await User.findOne({
-        _id: user.supervisorId,
-        baseRole: 'SUPERVISOR'
-      }).select('_id');
-      if (!supervisor) {
-        return res.status(409).json({
-          success: false,
-          message: 'Your assigned supervisor could not be found'
-        });
+      if (autoEscalated) {
+        const actingSupervisor = await User.findById(actingAssignment.originalUserId)
+          .select('managerId baseRole');
+        const manager = actingSupervisor?.managerId
+          ? await User.findOne({ _id: actingSupervisor.managerId, baseRole: 'MANAGER' })
+          : null;
+
+        if (!manager) {
+          return res.status(409).json({
+            success: false,
+            message: 'The acting supervisor is not assigned to a manager'
+          });
+        }
+        escalatedTo = manager._id;
+      } else {
+        escalatedTo = supervisor._id;
       }
     } else if (user.baseRole === 'SUPERVISOR') {
       let manager = user.managerId
@@ -109,8 +103,8 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
-// Get pending leave requests (for managers)
-router.get('/pending', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER']), async (req, res) => {
+// Get pending leave requests for the current approver.
+router.get('/pending', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER', 'SUPERVISOR']), async (req, res) => {
   try {
     const filter = { status: 'PENDING' };
 
@@ -121,15 +115,30 @@ router.get('/pending', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER'])
       }).select('_id');
 
       filter.$or = [
-        { escalatedTo: req.user.userId },
-        { userId: { $in: assignedSupervisors.map(supervisor => supervisor._id) } }
+        { userId: { $in: assignedSupervisors.map(supervisor => supervisor._id) } },
+        { autoEscalated: true, escalatedTo: req.user.userId }
       ];
+    } else if (req.user.baseRole === 'SUPERVISOR') {
+      const assignedStaff = await User.find({
+        baseRole: 'STAFF',
+        supervisorId: req.user.userId
+      }).select('_id');
+
+      filter.userId = { $in: assignedStaff.map(staff => staff._id) };
+      filter.escalatedTo = req.user.userId;
     }
 
     const leaveRequests = await LeaveRequest.find(filter)
       .populate('userId', 'username firstName lastName baseRole')
       .populate('escalatedTo', 'username firstName lastName baseRole')
       .sort({ createdAt: -1 });
+
+    if (req.user.baseRole === 'TECH_ADMIN') {
+      leaveRequests.sort((left, right) => {
+        const managerPriority = Number(right.userId?.baseRole === 'MANAGER') - Number(left.userId?.baseRole === 'MANAGER');
+        return managerPriority || right.createdAt - left.createdAt;
+      });
+    }
 
     res.json({ success: true, leaveRequests });
   } catch (error) {
@@ -155,7 +164,6 @@ router.get('/user/:userId', authMiddleware, async (req, res) => {
   }
 });
 
-// Approve leave requests. Supervisor requests must be handled by a manager or Tech Admin.
 router.patch('/:id/approve', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER', 'SUPERVISOR']), async (req, res) => {
   try {
     const { approvalNotes } = req.body;
@@ -169,14 +177,14 @@ router.patch('/:id/approve', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANA
       return res.status(409).json({ success: false, message: 'Only pending leave requests can be approved' });
     }
 
-    const requester = await User.findById(existingRequest.userId).select('baseRole');
-    const unassignedSupervisor = requester?.baseRole === 'SUPERVISOR' && !requester.managerId;
-    if (requester?.baseRole === 'SUPERVISOR' && !['TECH_ADMIN', 'MANAGER'].includes(req.user.baseRole)) {
-      return res.status(403).json({ success: false, message: 'Supervisor leave must be approved by a manager' });
-    }
-
-    if (req.user.baseRole !== 'TECH_ADMIN' && !unassignedSupervisor && existingRequest.escalatedTo?.toString() !== req.user.userId) {
-      return res.status(403).json({ success: false, message: 'This leave request is not assigned to you' });
+    const requester = await User.findById(existingRequest.userId).select('baseRole managerId supervisorId');
+    if (!requester || !canApproveLeaveRequest({
+      approverRole: req.user.baseRole,
+      approverId: req.user.userId,
+      request: existingRequest,
+      requester
+    })) {
+      return res.status(403).json({ success: false, message: 'This leave request is outside your approval role' });
     }
 
     const leaveRequest = await LeaveRequest.findByIdAndUpdate(
@@ -199,7 +207,6 @@ router.patch('/:id/approve', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANA
   }
 });
 
-// Reject leave requests. Supervisor requests must be handled by a manager or Tech Admin.
 router.patch('/:id/reject', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAGER', 'SUPERVISOR']), async (req, res) => {
   try {
     const { rejectionNotes } = req.body;
@@ -213,14 +220,14 @@ router.patch('/:id/reject', authMiddleware, roleMiddleware(['TECH_ADMIN', 'MANAG
       return res.status(409).json({ success: false, message: 'Only pending leave requests can be rejected' });
     }
 
-    const requester = await User.findById(existingRequest.userId).select('baseRole');
-    const unassignedSupervisor = requester?.baseRole === 'SUPERVISOR' && !requester.managerId;
-    if (requester?.baseRole === 'SUPERVISOR' && !['TECH_ADMIN', 'MANAGER'].includes(req.user.baseRole)) {
-      return res.status(403).json({ success: false, message: 'Supervisor leave must be rejected by a manager' });
-    }
-
-    if (req.user.baseRole !== 'TECH_ADMIN' && !unassignedSupervisor && existingRequest.escalatedTo?.toString() !== req.user.userId) {
-      return res.status(403).json({ success: false, message: 'This leave request is not assigned to you' });
+    const requester = await User.findById(existingRequest.userId).select('baseRole managerId supervisorId');
+    if (!requester || !canApproveLeaveRequest({
+      approverRole: req.user.baseRole,
+      approverId: req.user.userId,
+      request: existingRequest,
+      requester
+    })) {
+      return res.status(403).json({ success: false, message: 'This leave request is outside your approval role' });
     }
 
     const leaveRequest = await LeaveRequest.findByIdAndUpdate(

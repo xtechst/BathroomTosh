@@ -803,7 +803,9 @@ export class ManagerStaffComponent implements OnInit {
       this.currentUser.set(user);
       if (user) {
         setTimeout(() => {
-          this.loadManagers();
+          if (this.getCurrentUserRole() === 'TECH_ADMIN') {
+            this.loadManagers();
+          }
           this.loadSupervisors();
           this.loadStaff();
         });

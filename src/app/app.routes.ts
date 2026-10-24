@@ -54,6 +54,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/manager/leave-approvals/leave-approvals.component').then(m => m.LeaveApprovalsComponent)
   },
   {
+    path: 'supervisor/leave-approvals',
+    canActivate: [supervisorGuard],
+    loadComponent: () => import('./pages/manager/leave-approvals/leave-approvals.component').then(m => m.LeaveApprovalsComponent)
+  },
+  {
     path: 'manager/acting-roles',
     canActivate: [managerGuard],
     loadComponent: () => import('./pages/manager/acting-roles/acting-roles.component').then(m => m.ActingRolesComponent)

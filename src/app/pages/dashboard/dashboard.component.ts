@@ -52,6 +52,12 @@ import { BaseRole, User, Task } from '../../models';
               <p>Create and assign tasks to staff</p>
             </a>
 
+            <a *ngIf="isSupervisorRole()" routerLink="/supervisor/leave-approvals" class="action-card supervisor">
+              <div class="action-icon">📝</div>
+              <div class="action-title">Review Staff Leave</div>
+              <p>Review leave requests from assigned staff</p>
+            </a>
+
           <!-- Manager Actions -->
             <a *ngIf="canApproveLeave()" routerLink="/manager/leave-approvals" class="action-card manager">
               <div class="action-icon">📝</div>
@@ -112,6 +118,7 @@ import { BaseRole, User, Task } from '../../models';
 
           <div class="admin-links">
             <a routerLink="/admin/user-management" class="admin-link-card">Manage Users</a>
+            <a routerLink="/manager/leave-approvals" class="admin-link-card">Review Leave Requests</a>
             <a routerLink="/admin/audit-logs" class="admin-link-card">View Audit Logs</a>
             <a routerLink="/admin/system-config" class="admin-link-card">System Configuration</a>
           </div>

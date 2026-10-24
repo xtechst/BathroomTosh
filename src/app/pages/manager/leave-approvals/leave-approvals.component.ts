@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LeaveService } from '../../../services/leave.service';
+import { AuthService } from '../../../services/auth.service';
 import { LeaveRequest } from '../../../models/leave';
 
 @Component({
@@ -40,7 +41,7 @@ import { LeaveRequest } from '../../../models/leave';
             <p *ngIf="request.escalatedTo">Escalated To: {{ getEscalationTarget(request) }}</p>
           </div>
 
-          <div class="action-area">
+          <div class="action-area" *ngIf="canAction(request)">
             <label>Notes</label>
             <textarea
               [(ngModel)]="notes[request._id || request.id || '']"
@@ -53,6 +54,7 @@ import { LeaveRequest } from '../../../models/leave';
               <button type="button" class="reject" (click)="rejectLeave(request._id || request.id || '')" [disabled]="actionLoading()">Reject</button>
             </div>
           </div>
+          <p class="read-only" *ngIf="!canAction(request)">Approval is handled by the requester's assigned approver.</p>
         </div>
       </div>
     </div>
@@ -132,16 +134,30 @@ import { LeaveRequest } from '../../../models/leave';
     .message.error { background: #ffe3e3; color: #7f1717; }
     .message.success { background: #e6f9ed; color: #1d6f2d; }
     .no-data, .loading { color: #5f6d7a; font-size: 1rem; }
+    .read-only { color: #657381; font-size: 0.9rem; }
   `]
 })
 export class LeaveApprovalsComponent implements OnInit {
   private readonly leaveService = inject(LeaveService);
+  private readonly authService = inject(AuthService);
   pendingRequests = signal<LeaveRequest[]>([]);
   loading = signal(false);
   actionLoading = signal(false);
   error = signal<string | null>(null);
   successMessage = signal<string | null>(null);
   notes: Record<string, string> = {};
+
+  canAction(request: LeaveRequest): boolean {
+    const role = this.authService.getCurrentUser()?.baseRole;
+    const requester = typeof request.userId === 'string' ? null : request.userId;
+    if (!requester) return false;
+
+    return role === 'TECH_ADMIN'
+      ? requester.baseRole === 'MANAGER'
+      : role === 'MANAGER'
+        ? requester.baseRole === 'SUPERVISOR' || request.autoEscalated === true
+        : role === 'SUPERVISOR' && requester.baseRole === 'STAFF';
+  }
 
   ngOnInit() {
     this.loadPendingRequests();

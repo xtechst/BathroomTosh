@@ -108,6 +108,9 @@
               </option>
           </select>
       </div>
+          <button type="submit" [disabled]="supervisorForm.invalid || isAssigningSupervisor()">
+            {{ isAssigningSupervisor() ? 'Assigning...' : 'Assign Supervisor' }}
+          </button>
       <span class="error" *ngIf="assignSupervisorError()">{{ assignSupervisorError() }}</span>
     </form>
     <p *ngIf="selectedUser()?.baseRole !== 'STAFF'" class="info-message">
@@ -128,6 +131,9 @@
           </option>
         </select>
       </div>
+      <button type="submit" [disabled]="managerForm.invalid || isAssigningManager()">
+        {{ isAssigningManager() ? 'Assigning...' : 'Assign Manager' }}
+      </button>
       <span class="success" *ngIf="assignManagerSuccess()">{{ assignManagerSuccess() }}</span>
       <span class="error" *ngIf="assignManagerError()">{{ assignManagerError() }}</span>
     </form>
